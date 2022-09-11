@@ -1,0 +1,150 @@
+	title	limrck
+	subttl	bootstrap LIMERICK for a chaos connection
+	search	monsym,macsym
+	search	chadfs
+	.requi	sys:macrel
+
+;; This could be generalized for many other programs,
+;; given contact, executable, and less hacky rscan handling.
+
+stdac.
+
+	loc 500000
+
+pdl:	block <pdlz==100>
+njfn:	block 1
+fprog:	block 1
+chapkt:	block ^d500
+rsbuf:	ascii "LIME "
+	block 100
+
+limrck:	;; First listen on LIMRICK
+	;; then create a subfork for sys:finger.exe
+	;; then put contact args in RSCAN buffer
+	;; then set primary output jfn with SPJFN
+	;; then start it
+	;; When this works, start it in this fork
+	;; for efficiency, perhaps
+
+	;; Init
+	reset
+	move p,[iowd pdlz,pdl]
+	movei	t1,.fhslf
+	setob	t2,t3
+	epcap
+
+	call lsn		;Listen
+	call jcl		;Get JCL from RFC
+	call getit		;Get the program in order
+
+	move t1,fprog
+	hrro t2,njfn
+	spjfn			;Set conn as primary output
+	 ercal jerr
+
+start:	move t1,fprog
+	setz t2,		;Start it at primary entry vector
+	sfrkv
+	 ercal jerr
+	wfork			;Wait for it
+	 ercal jerr
+	kfork			;Kill it when it's done
+	 ercal jerr
+
+	move t1,njfn
+	movx t2,.mosnd		;Send out any buffered output
+	mtopr
+	 ercal jerr
+	movx t2,.moeof		;Send an EOF to make sure
+	mtopr
+	 ercal jerr
+	movx t2,.monop		;Wait for it to get acked
+	mtopr
+	 ercal jerr
+	dobe			;Wait for it?
+	 ercal jerr
+	closf			;Close it.
+	 ercal jerr
+	
+	jrst done		;Now we're also done
+
+lsn:	movx	t1,gj%old!gj%sht
+	hrroi	t2,[asciz /CHA:.LIMERICK/]
+	gtjfn
+	 ercal	jerr
+	movx	t2,fld(8,of%bsz)!of%rd!of%wr
+	openf
+	 ercal	jerr
+	movem	t1,njfn
+	ret
+
+jcl:	move t1,njfn
+	movei t2,.mopkr
+	movei t3,chapkt
+	mtopr			;read the RFC
+	 ercal 	jerr
+	movei t3,chapkt
+	load t4,cpknb,(t3)	;get byte count
+	caig t4,^d9		;Anything more than "LIMERICK "?
+	 ret
+	move p1,[point 8,chpkdt(t3)]
+	do.
+	 ildb t1,p1
+	 caie t1," "
+	  sojg t4,top.		;skip until space
+	 caie t1," "
+	  ret			;No JCL after all
+	enddo.
+	;; copy actual args
+	move p2,[point 7,rsbuf+1]	;Hack
+	setz p3,
+	do.
+	 ildb t1,p1
+	 idpb t1,p2
+	 aos p3
+	 sojg t4,top.
+	enddo.
+	;; end with CRLF
+	movei t1,15
+	idpb t1,p2
+	movei t1,12
+	idpb t1,p2
+	setz t1,
+	idpb t1,p2
+	hrroi t1,rsbuf		;Put it in the rscan buffer
+	rscan%
+	 ercal jerr
+	ret
+
+getit:	movx	t1,gj%old!gj%sht
+	hrroi	t2,[asciz /SYS:LIMRCK.EXE/]
+	gtjfn			;Find the program
+	 ercal	jerr
+	movem t1,fprog
+	setz t1,
+	cfork%			;Create a subfork for it
+	 ercal jerr
+	movx t2,sc%gtb		;Needs getab privs
+	move t3,t2
+	epcap%
+	 ercal jerr
+	exch t1,fprog
+	hrl t1,fprog
+	get			;Put it in the subfork
+	 ercal jerr
+	ret
+
+done:
+lose:	haltf			; +++ should send LOS packet
+
+jerr:	hrroi	1,[asciz /Failed: /]
+	esout
+	movei	1,.priou
+	hrloi	2,.fhslf
+	setz	3,
+	erstr
+	 jfcl
+	 jfcl
+	haltf
+
+	end	limrck
