@@ -1,0 +1,17 @@
+Install CHARFC.EXE in SYSTEM:, and start it e.g by adding
+JOB n "login operator
+enable
+system:charfc
+"
+to your SYSJOB/SYSJB1.RUN.
+
+Find CHADFS.UNV in <MONITOR-SOURCES>.
+
+Install CHAFIN.EXE as SYSTEM:CHAOS.NAME (to start SYS:FINGER)
+Install TIMSER.EXE as SYSTEM:CHAOS.TIME
+Install UPTIME.EXE as SYSTEM:CHAOS.UPTIME
+Install LIMRCK.EXE as SYSTEM:CHAOS.LIMERICK (note longer name)
+
+Start FILE.EXE at PURIFY to install it as SYSTEM:CHAOS.FILE
+The START command doesn't understand symbolic addresses, but
+you can first EXAMINE PURIFY to find the address.
