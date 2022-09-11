@@ -5,25 +5,6 @@
 
 	SEARCH PROLOG,MONSYM	; system definitions
 
-; Parameters for storage configuration
-
-NJOBS==:^D80			; number of jobs on system
-NOFN==:1000			; number of OFN slots
-NDHL==:^D0			; number of terminals
-NTTPTY==:^D25			; number of PTYs
-NTTTVT==:^D40			; number of TVTs
-NTTCTH==:^D5			; number of CTERM lines
-NTTLAH==:^D5			; number of LAT lines
-NTTMCB==:^D5			; number of NRT lines
-MAXTCB==:^D80			; number of TCB's
-NNIPIB==:^D160			; number of NI buffers to keep around
-MAXCOR==:20000			; 4096K of core
-SSPT==:5000			; size of SPT
-NDST==:^D20000			; 20000 pages of swapping space
-SWDST==:^D20000			; default swapping space
-TTSIZ==:100			; larger terminal buffers
-TTBSIZ==:400			; larger big buffer
-
 ; System configuration
 
 NETN==:1			; Internet support
@@ -33,7 +14,7 @@ KNIN==:1			; KLNI exists
 IPNIN==:1			; IP on KLNI
 IPNIAN==:2			; alternative NI address interfaces
 IPCIN==:0			; IP on CI
-DCN==:1				; DECnet
+DCN==:0				; DECnet
 FEN==:1				; FE devices
 STRN==:10			; maximum number of structures
 MTAN==:2			; number of magtapes
@@ -55,6 +36,33 @@ PLTN==:0			; number of physical plotters
 PTRN==:0			; paper tape reader
 PTPN==:0			; paper tape punch
  SPTPN==:1			; number of spooled PTPs
+
+; Parameters for storage configuration
+
+NJOBS==:^D80			; number of jobs on system
+NOFN==:1000			; number of OFN slots
+NDHL==:^D0			; number of terminals
+NTTPTY==:^D25			; number of PTYs
+NTTTVT==:^D40			; number of TVTs
+ifn DCN,<
+NTTCTH==:^D5			; number of CTERM lines
+NTTLAH==:^D5			; number of LAT lines
+NTTMCB==:^D5			; number of NRT lines
+>
+ife DCN,<
+;; Need at least one, it seems, otherwise COMSTB and BADFLS follow
+NTTCTH==:^D1			; number of CTERM lines
+NTTLAH==:^D1			; number of LAT lines
+NTTMCB==:^D1			; number of NRT lines
+>
+MAXTCB==:^D80			; number of TCB's
+NNIPIB==:^D160			; number of NI buffers to keep around
+MAXCOR==:20000			; 4096K of core
+SSPT==:5000			; size of SPT
+NDST==:^D20000			; 20000 pages of swapping space
+SWDST==:^D20000			; default swapping space
+TTSIZ==:100			; larger terminal buffers
+TTBSIZ==:400			; larger big buffer
 
 ; Directory parameters
 

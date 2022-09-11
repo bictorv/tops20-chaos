@@ -1368,6 +1368,10 @@ DEFJS SCTTY,324,MSEC1,,OLD
 DEFJS OPRFN,326,,NIM,OLD	;TOPS20AN, Obsolete
 				;327-335 reserved
 DEFJS SETER,336,MSEC1,,OLD
+
+IFN CHAOS,<
+DEFJS CHANM,460,MSEC1
+>
 ;NEW (NOT IN BBN TENEX) JSYS'S ADDED STARTING AT 500
 
 DEFJS RSCAN,500,MSEC1,,OLD
@@ -1463,6 +1467,12 @@ DEFJS LATOP,631,MSEC1		;~6.0 LAT Operation Display and Control
 DEFJS NTINF,632,MSEC1		;NETWORK INFORMATION JSYS
 DEFJS INFO,633,XCDSEC		;[7.1076] INFO% monitor call (in section 6)
 DEFJS DOB,635,XCDSEC		;[7.1081] Dump On Bugchk control JSYS
+
+;;DEFJS VTSOP,635,MSEC1,,OLD	;99 
+DEFJS RTMOD,636,MSEC1,,OLD	;99
+DEFJS STMOD,637,MSEC1,,OLD	;99
+DEFJS RTCHR,640,MSEC1,,OLD	;99
+DEFJS STCHR,641,MSEC1,,OLD	;99
 				;636-716 reserved
 IFN PANDASW,<	;[1]
 DEFJS IDLE,701,XCDSEC		;RETURN IDLE TIME
@@ -1723,6 +1733,7 @@ DEFSTR(PIDH,.IPKDH,31,32)       ; PACKET.INTERNET.DESTINATION-HOST
 AN%TCP==:1B0	      ;TOPS20AN	; RH of 1 contains TCP JCN instead
 				; of JFN; Implies AN%NTP
 AN%NTP==:1B2	      ;TOPS20AN	;NEW TELNET PROTOCOL
+AN%SUP==:1B3	      ;99 SUPDUP protocol
 
 
 ;ATACH
@@ -1866,6 +1877,13 @@ CR%ACS==:1B3			;SET ACS FROM BLOCK
 CR%ST==:1B4			;START PROCESS AT PC
 CR%PCV==:777777B35		;VALUE OF PC
 
+IFN CHAOS,<
+;CHANM%
+
+.CHNPH==:0			;GET LOCAL HOST INFORMATION
+.CHNSN==:1			;TRANSLATE HOST NAME TO NUMBER
+.CHNNS==:2			;TRANSLATE HOST NUMBER TO NAME
+>
 	SUBTTL CHFDB
 
 ;CHFDB
@@ -4879,6 +4897,9 @@ NO%RDX==:777777			;RADIX
 	NW%TCP==:1  		;     INTERNET TCP
 	NW%DNA==:2  		;     DECNET
 	NW%LAT==:3  		;     LAT
+ifn CHAOS,<
+	NW%CHA==:4		;     Chaosnet
+>
 		              	;  B18-B35 LINE TYPE
 	NW%UND==:0		;     UNDEFINED TERMINAL TYPE
 	NW%FE==:1    		;     FRONT END TERMINAL
@@ -4887,6 +4908,9 @@ NO%RDX==:777777			;RADIX
 	NW%TV==:4    		;     TVT
 	NW%CH==:5    		;     CTERM
 	NW%LH==:6    		;     LAT
+ifn CHAOS,<
+	NW%CN==:7		;     Chaosnet NVT
+>
 .NWNNU==:5       		;NODE NUMBER WORD 1
 .NWNU1==:6       		;NODE NUMBER WORD 2
 	SUBTTL NTMAN%
@@ -6448,6 +6472,9 @@ SF%LSN==:1B0			;[7322]LSN flag bit, 1=include  0=ignore
 .SFPEX==:103			;[9040] Password expiration
 .SFPWD==:104			;[9040] Password dictionary function
 .SFHDT==:105			;[9040] Hangup on DETACH
+IFN CHAOS,<
+.SFCHA==:110			;Turn on and off Chaosnet Access Needed flag (@@@@ new value)
+>
 ;SMON/TMON bit masks
 
 SF%FAC==:1B<.SFFAC>		;FACT ENTRIES ALLOWED
@@ -6959,6 +6986,37 @@ TT%DUM==:3B33			;DUPLEX MODE
 .TTLDX==:3			;LINE HALF DUPLEX
 TT%PGM==:1B34			;PAGE MODE
 TT%CAR==:1B35			;CARRIER STATE
+
+;; VTS stuff
+; Terminal characteristics word
+TC%MOV==1B0			; Absolute or relative cursor motion
+TC%BS== 1B1			; Cursor back at least (backspace)
+TC%HOM==1B2			; Home to top left hand corner
+TC%CLR==1B3			; Clear entire screen at least
+TC%SCL==1B4			; Clear selective portions of screen
+TC%LID==1B5			; Line insert/delete
+TC%CID==1B6			; Character insert/delete
+TC%VBL==1B7			; Visible bell
+TC%MET==1B8			; Has META (8-bit) key
+TC%SCR==1B9			; Scrolls on down from bottom line
+TC%RSC==1B10			; Reverse-scrolls on up from top-line
+TC%OVR==1B11			; Overwrites
+TC%FCI==1B12			;221 Has full 12-bit input capability
+
+TC%PRT==1B17			; Printing terminal
+TC%WRP==1B18			; Outputting in last line pos will CRLF
+; Terminal mode word
+TM%DPY==1B0			; Process ^P codes
+TM%SCR==1B1			; Scroll mode / Wrap mode
+TM%MOR==1B2			; More processing enabled
+TM%MVR==1B3			; Verbose sort of more
+TM%MSM==1B4			; Smart about more
+TM%VBL==1B5			; Use visible bell for ^G
+TM%GRF==1B6			;289 Perform Graphics Functions
+TM%RSU==1B7			;+++
+
+TM%ITP==1B17			; Intelligent terminal protocol in use
+
 
 ;DIRECTORY PROTECTION DEFINITIONS (3 6-BIT FIELDS: OWNER, GROUP, WORLD)
 
@@ -7051,6 +7109,7 @@ IFN PANDASW,<	;[1]
 .TT100==:^D16			;VT100
 .TTL38==:^D17			;LA38
 .TT120==:^D18			;LA120
+.TTSUP==:^d26			;Supdup
 .TT125==:^D35			;VT125
 .TTK10==:^D36			;VK100 - GIGI
 .TT102==:^D37			;VT102
@@ -7124,6 +7183,9 @@ SC%NAS==:1B25	      ;TOPS20AN	;NETWORK ABSOLUTE SOCKET PRIVILEGE
 SC%DNA==:1B26			;DECNET ACCESS ALLOWED
 SC%ANA==:1B27	      ;TOPS20AN ;ARPANET ACCESS ALLOWED
 SC%SEM==:1B28			;[7.1077]SEMI-OPR PRIVILEGES
+IFN CHAOS,<
+SC%CHA==:1B34			;Chaosnet privileges
+>
 IFN PANDASW,<	;[1]
 SC%ADM==:1B35			;Administrator
 >;IFN PANDASW
@@ -8640,6 +8702,18 @@ DEFINE .ERCOD <
 .ERR (2773,ENQX24,<Internal resources exhausted (No more SCA buffers)>)  ;[7.1072]
 .ERR (2774,DIRX6,<Structure INDEX-TABLE damaged>) ;[8822]
 .ERR (3033,MSTX43,<Illegal to dismount structure during initialization>)
+
+IFN CHAOS,<
+; MIT Chaos errors
+.ERR (3044,CHAOX1,<LOS received for connection>)
+.ERR (3045,CHAOX2,<Connection not in correct state>)
+.ERR (3046,CHAOX3,<Byte count too large>)
+.ERR (3047,CHAOX4,<No LOS received for connection>)
+.ERR (3050,CHAOX5,<Not allowed to use Chaosnet>)
+.ERR (3100,CHNX01,<Invalid or Unknown Chaosnet Host Name>)
+.ERR (3101,CHNX02,<Invalid or Unknown Chaosnet Host Number>)
+.ERR (3102,CHNX03,<Local Chaosnet host information not set>)
+>
 
 ; DEC TCP JSYS Interface Errors
 

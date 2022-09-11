@@ -173,13 +173,16 @@ IFNDEF DHPRSW,<DHPRSW==-1>
 IFE DHPRSW,<
 	EXT	<HSTGUD,BSTLCL>	; Externally supplied at some sites
 >				; (IPIPIP.MAC at MIT)
-
 ; Code doesn't fully support class CH (Chaosnet) yet,
 ; so turn off Chaos-specific things even at MIT.
-	CHAOS==0		; Temporary!
+;;	CHAOS==0		; Temporary!
 
 ; Default is no Chaosnet code for non-MIT monitors.
-IFNDEF CHAOS,<CHAOS==0>
+IFNDEF CHAOS,<CHAOS==1>
+
+ifn chaos,<
+	ext <chaddn>
+>
 
 	SUBTTL	GTDOM% JSYS
 
@@ -1313,23 +1316,38 @@ CTOD:	SKIPLE T2		; Make sure it's a legal Chaos address
 	  IDPB T2,T1		; Write it into string
 	  SOJG T4,TOP.		; Next digit
 	ENDDO.
-	MOVE T2,[POINT 7,CHADDR]
+ife 0,<
+	MOVE T2,[POINT 7,CHADDN]	;Chaos address domain, e.g. CH-ADDR.NET, in label format
 	DO.			; Tack on suffix strings
 	  ILDB T3,T2
 	  JUMPE T3,ENDLP.
 	  IDPB T3,T1
 	  LOOP.
 	ENDDO.
-	MOVE T2,CHDOMN		; Pointer to our chaosnet domain name
+	;; Make sure there is an empty label at the end
+	idpb t3,t1
+	idpb t3,t1
+>
+ife 1,<
+	MOVE T2,[POINT 7,CHADDR]	;Chaos address domain, e.g. CH-ADDR.NET
+	DO.			; Tack on suffix strings
+	  ILDB T3,T2
+	  JUMPE T3,ENDLP.
+	  IDPB T3,T1
+	  LOOP.
+	ENDDO.
+	MOVE T2,[POINT 7,CHDOMN]	; Pointer to our chaosnet domain name
 	DO.
 	  ILDB T3,T2
 	  IDPB T3,T1
 	  JUMPN T3,TOP.
 	ENDDO.
+>
 	RETSKP			; Return success
 
 ; String to append to domain-name-formatted address.
 CHADDR:	BYTE(7) 7,"C","H","-","A","D","D","R",0
+CHDOMN: BYTE(7) 3,"N","E","T",0
 
 ; There should be a conditional PRINTX here that checks to be
 ; sure CHADDR and associated stuff aren't too long for buffer.
@@ -1885,7 +1903,7 @@ QCGADR:	CAIE T2,QC.IN		; Internet?
 IFN CHAOS,<
 	CAIE T2,QC.CH		; Chaosnet?
 	IFSKP.
-	  MOVE T1,CH.A.ADDR(Q1)	; Get address
+	  MOVE T1,CH.A.ADDR(T1)	; Get address
 	  ; Ought to compare against CHDOMN
 	  ; to be sure this is right chaosnet.
 	  ; If it isn't, return -1 as goodness,
@@ -1915,10 +1933,23 @@ IFN CHAOS,<
 	CAIE T2,QC.CH
 	IFSKP.
 	  MOVEI T2,1		; All addresses look alike without a routing
+	  ;;call hstguc		; CHeck goodness on Chaos
 	  JRST QCGGOK		; table, so the all win, I guess
 	ENDIF.
 >;IFN CHAOS
 	RETBAD (GTDX12)
+
+ifn chaos,<
+hstguc:	saveac <t3,t4>
+	movei t2,1		;Default
+	move t3,mychad
+	lsh t3,-8
+	move t4,t1
+	lsh t4,-8
+	camn t3,t4
+	 movei t2,2		;Same subnet, better!
+	ret
+>
 
 QCGGOK:	SAVEAC <T1>
 	SKIPE T1,RPTR		; Random number pointer set up?

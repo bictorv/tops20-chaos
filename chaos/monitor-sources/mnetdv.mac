@@ -159,6 +159,11 @@
 	SEARCH ANAUNV,PROLOG
 	TTITLE (MNETDV,MNETDV,< - Internet Multinet Interface>)
 	.DIREC FLBLST		;[8975] First line binary listing only please
+
+ifn chaos,<
+	extn <chaini,chaddn,chipgw,myhnam>
+>
+
 	Subttl	Table of Contents
 
 ;		     Table of Contents for MNETDV
@@ -1494,7 +1499,7 @@ TCRLF:	PUSH P,T1		;Save T1
 ;	P4/ Pointer into line buffer
 
 	BUFSIZ==10		;[8969] Size of temp string buffer
-	LINSIZ==<^D135/5>	;[8975] Size of line buffer
+	LINSIZ==<^D200/5>	;[8975] Size of line buffer
 
 ADRINI::SAVEPQ			;Watch your Ps and Qs
 	TRVAR <<LINBUF,LINSIZ>,<TMPBUF,BUFSIZ>> ;[8975]
@@ -1626,6 +1631,102 @@ IFN PANDASW,<	;[2]
 	CALL (T1)		; go to it
 	JRST ADRLP3		; and loop
 
+IFN CHAOS,<
+;; CHAOS keyword
+ADCHAO:	call gch		;Read terminator of keyword
+	 jrst adcher
+	caie t2,":"
+	 jrst adcher
+	move t1,p4		;ptr to data
+	movei t3,8		;octal
+	nin%
+	 erjmp adchb
+	movem t1,p4		;restore pointer
+	;; test value
+	caig t2,400
+	 jrst adchb
+	caile t2,177777
+	 jrst adchb
+	movem t2,mychad
+	callret reeat
+
+adcher: jsp t1,adrerr
+	asciz /%Colon not after CHAOS/
+
+adchb:	jsp t1,adrerr
+	asciz /%Invalid CHAOS address/
+
+;; CHAOS-ADDR-DOMAIN keyword
+ADCHDN:	call gch		;Read terminator of keyword
+	 jrst adchdr
+	caie t2,":"
+	 jrst adchdr
+	call gfield
+	caie t2,","
+	ifskp.
+	 call reeat
+	else.
+	 setz t2,
+	endif.
+	move t4,[point 7,tmpbuf]
+	call padchd		;Parse chaos addr domain
+	ret
+
+;; Parse "here.is.a.dom.ain" pointed to by t4
+;; to DNS data format, label by label with length bytes
+padchd::saveac <t1,t3,p1,p2>
+	setzb p1,p2
+	;; move t4,[point 7,tmpbuf]
+	move t3,[point 7,chaddn]
+	push p,t4		;Save beginning of label
+	do.
+	 ildb t1,t4
+	 ifn. t1
+	  ;; there was a byte
+	   aos p1		;count it
+	   caie t1,"."
+	    loop.
+	   sos p1		;Un-count dot
+	 else.
+	  ;; If we found an empty label, end it all.
+	  jumpe p1,endlp.
+	 endif.
+	 ;; Found dot (or null), so end of label
+	 idpb p1,t3		;Write length byte
+	 pop p,p2		;Get beg ptr
+	 do.
+	  ildb t1,p2		;copy p1 bytes
+	  pbout%
+	  idpb t1,t3
+	  sojg p1,top.
+	 od.
+	 push p,t4		;Save beginning of next label
+	 loop.
+	od.
+	pop p,t4
+	setz t1,
+	idpb t1,t3		;Make sure we end with an empty label
+	ret
+
+adchdr: jsp t1,adrerr
+	asciz /%Colon not after CHAOS-ADDR-DOMAIN/
+
+;; CHAOS-IP-GATEWAY keywork
+ADCHGW:	call gch		;Read terminator of keyword
+	 jrst adchgr
+	caie t2,":"
+	 jrst adchgr
+	call adg4db		;Read 4 decimal bytes
+	 jrst adchgb
+	movem t1,chipgw
+	callret reeat		;reeat terminator and return
+
+adchgr:	jsp t1,adrerr
+	asciz /%Colon not after CHAOS-IP-GATEWAY/
+adchgb:	jsp t1,adrerr
+	asciz /%Invalid CHAOS-IP-GATEWAY value field/
+>
+
 ;DEFAULT keyword, used to set this address as the primary host name.
 ;[9156] Sets DEFNET, NETFLD, DEFADR, NOHOST
 
@@ -1993,6 +2094,11 @@ TABEND(INTNAM)
 ; Take of modifiers
 
 TABLE(TYPNAM)
+ifn chaos,<
+KEY CHAOS-ADDR-DOMAIN,ADCHDN	;Chaosnet address domain, e.g. CH-ADDR.NET
+KEY CHAOS-ADDRESS,ADCHAO	;Chaosnet address
+KEY CHAOS-IP-GATEWAY,ADCHGW	;Chaosnet IP gw
+>
 KEY DEFAULT,ADDFLT		; This is the 'primary' address for host
 KEY LOGICAL-HOST-MASK,ADLHM	; Logical host mask for this network
 KEY NCP,ADNCP			; network uses Arpanet NCP protocal
