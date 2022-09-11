@@ -1039,6 +1039,12 @@ SYSINF::MOVEI A,.SFOPR
 	MOVEI A,.SFLAT		;[3041]GET LAT LOGINS ALLOWED BIT
 	HRROI B,[ASCIZ / LAT terminal logins /]	;[3041]FIRST PART OF MSG
 	CALL TYPALO		;[3041]PRINT MESSAGE ABOUT LOGIN PERMISSION
+ifn chasw,<
+	movei a,.sfcha
+	tmon
+	type < Chaosnet access control is >
+	call insyed
+>
 	MOVEI A,.SFCTY
 	TMON
 	TYPE < Console terminal login >
@@ -3501,6 +3507,52 @@ GETHSC:	CALL BEFORE
 ENCLUS:	TLZ Z,F2		; CLEAR TAB FLAG
 	RET
 
+
+ifn chasw,<
+; Information (about) chaosnet
+.ICHA::	keywd $icha
+	 T STATUS,onewrd,chasts
+	 jrst cerr
+	jrst (p3)
+
+$icha:	table
+	T STATUS,onewrd,chasts
+	tend
+
+chasts:	movx a,sixbit/CHSTAT/
+	sysgt%
+	skipe b
+	ifskp.
+	 etype <%%Chaosnet status unavailable%_>
+	else.
+	 move b,a
+	 hrroi a,[asciz "on"]
+	 skipn b
+	  hrroi a,[asciz "off"]
+	 etype < Chaosnet is %1\%%_>
+	endif.
+	;; Protection if it's on
+	movx a,.sfcha
+	tmon
+	ifnje.
+	 etype < Chaosnet access control is >
+	 hrroi a,[asciz "dis"]
+	 skipe b
+	  hrroi a,[asciz "en"]
+	 etype <%1\%abled%_>
+	endif.
+	;; Also print host address and name
+	movx a,.chnph
+	hrroi b,buf0
+	chanm%
+	ifnje.
+	 hrroi b,buf0
+	 etype < Chaosnet host name is %2\%, address is %1O%%_>
+	else.
+	 etype <?%?>
+	endif.
+	ret
+>
 
 ;INFORMATION (ABOUT) DECNET  OR  INFORMATION (ABOUT) DECNET FOO::
 

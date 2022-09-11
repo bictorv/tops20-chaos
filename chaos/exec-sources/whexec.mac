@@ -1,2 +1,4 @@
 ; Flag for edited by PANDA
-	WHEXEC==4
+;	WHEXEC==4
+; Flag for edited by BV
+	WHEXEC==6
