@@ -1,0 +1,98 @@
+	title	uptime
+	subttl	chaos uptime server (MT)
+
+	search	monsym
+
+ifndef tnx,<
+ife .osfail-<sixbit /TENEX/>,<tnx==1>
+ifn .osfail-<sixbit /TENEX/>,<tnx==0>
+>
+
+f=0
+a=1
+b=2
+c=3
+d=4
+e=5
+r=6
+t=10
+tt=11
+bp=12
+cn=13
+p=17
+
+.mopks==26
+
+start:	reset
+	movei	a,.fhslf
+	setob	b,c
+	epcap
+	movsi	a,(gj%old!gj%sht)
+	hrroi	b,[asciz /CHA:.UPTIME/]
+	gtjfn
+	 jrst	jerr
+	move	b,[8b5+of%rd+of%wr]
+	openf
+	 jrst	jerr
+	movem	a,njfn
+
+	time			;system uptime
+	 erjmp notime
+	idiv a,b		;make it seconds
+	imuli a,^d60		;make it 60ths
+	move b,a
+
+	move	a,[byte (8) 5,0,0,4] ; ANS, data length is 4
+	movem	a,pkt
+	setz	c,		; Byte counter
+bytlup:	dpb	b,pakptr(c)
+	lsh	b,-8
+	jumpe	b,.+2
+	aoja	c,bytlup
+
+sndpkt:	move	a,njfn
+	movei	b,.mopks	; Send it off
+	movei	c,pkt
+	mtopr
+	movei	b,.monop	; Wait for it to get there
+	mtopr
+	closf
+	 jfcl
+	haltf
+
+; Time not set
+notime:	move	a,[byte (8) 3,0,0,0] ; Send CLS
+	movem	a,pkt
+	move	a,[point 7,[asciz /Don't know the uptime/]]
+	move	b,datptr
+	seto	d,
+nolup:	ildb	c,a
+	idpb	c,b
+	aoj	d,
+	jumpn	c,nolup
+	dpb	d,[point 8,pkt,31] ; Store length
+	jrst	sndpkt
+
+jerr:	hrroi	1,[asciz /
+?Failed: /]
+	psout
+	movei	1,.priou
+	hrloi	2,.fhslf
+	setz	3,
+	erstr
+	 jfcl
+	 jfcl
+	haltf
+
+; Pointers for hairy packing order
+pakptr:	point	8,pkt+4,7
+	point	8,pkt+4,15
+	point	8,pkt+4,23
+	point	8,pkt+4,31
+
+datptr:	point 	8,pkt+4
+
+njfn:	block	1
+pkt:	block	50
+
+	end	start
