@@ -501,7 +501,8 @@ IFN ITS,[
 IFN 20X,[
 	LOC 140
 IFE OZ\XX,[
-.INSRT SYSTEM:CHSDEF
+;.INSRT SYSTEM:CHSDEF
+.insrt chsdef
 ];NOT OZ\XX
 IFN OZ\XX,[
 .INSRT MID:CHSDEF
@@ -743,8 +744,16 @@ STRNAM:	BLOCK 5			;For converting sixbit structures to ascii
 CNCTED:	0			;are you foreignly connected?
 CONFNM:	BLOCK 10.		;Made by JFNS (for trying to CONNECT)
 RETENA: 0			;AUTOMATIC FILE RETRIEVALS ENABLED?
-$$LNM==1			;Process LOGICALS.CMD on login?
+IFNDEF $$LNM,$$LNM==1		;Process LOGICALS.CMD on login?
 ];20X
+
+IFN 20X,[			;BV defaults for now
+IFNDEF .SFCHA,.SFCHA==110
+IFNDEF SC%CHA,SC%CHA==:1_34
+$$SUBM==0			;Don't allow SUBMIT
+$$LNM==0			;Don't do LOGICALS.CMD
+$$CCUC==1			;But do check Chaos capability if needed
+]
 
 IFNDEF .SFCHA,$$CCUC==0		;Only if MIDAS knows about Chaos capability do we care
 IFE 20X,$$CCUC==0		;No chaos checking on 10X
@@ -2970,6 +2979,34 @@ SITEP3:	HRROI 2,KPASSF
 ];IFN 0
 ];OZ
 
+capenb:	push p,1
+	push p,2
+	push p,3
+	movei 1,.fhslf
+	rpcap
+	 ercal jsyser
+	move 3,2
+	epcap
+	 ercal jsyser
+	pop p,3
+	pop p,2
+	pop p,1
+	ret
+
+capdis:	push p,1
+	push p,2
+	push p,3
+	movei 1,.fhslf
+	rpcap
+	 ercal jsyser
+	hllzs 3
+	epcap
+	 ercal jsyser
+	pop p,3
+	pop p,2
+	pop p,1
+	ret
+
 ;;; Check out the possibilities of an Anonymous login.  If the file seen
 ;;; below exists, then it contains the password for the Anon account.  We
 ;;; skip-return with password in JFNSTR if we find it, else non-skip. The
@@ -2985,7 +3022,9 @@ ANONPW:	MOVE 1,ANONUM
 	MOVEM 1,USRNUM
 IFN 20X,HRROI 2,[ASCIZ /SYSTEM:ANONYMOUS.USERFILE/]
 .ELSE	HRROI 2,[ASCIZ /<SYSTEM>ANONYMOUS.USERFILE/]
-GETPSW:	MOVSI 1,(GJ%OLD\GJ%SHT)
+GETPSW:	;; BV: enable caps so we can read the file
+	call capenb
+	MOVSI 1,(GJ%OLD\GJ%SHT)
 	GTJFN
 	 POPJ P,	;File not there - Must specify password.
 	PUSH P,1	;Save JFN
@@ -2994,9 +3033,13 @@ GETPSW:	MOVSI 1,(GJ%OLD\GJ%SHT)
 	 JRST [	POP P,1		;Clean stack,
 		RLJFN		;release JFN,
 		 JFCL
+		;; BV: disable caps again
+		call capdis
 		POPJ P, ]	;and fail-return
 	MOVE 3,[440700,,JFNSTR]
 	MOVEI 4,39.
+	;; BV: disable caps again
+	call capdis
 COMLA1:	BIN
 	 ERJMP COMLA2
 	CAIG 2,40
@@ -6638,13 +6681,27 @@ IFN OZ,	 PUSHJ P,AUTLOG
 COMEN1:	JUMPLE BC,DOENA		;Jump if no options left
 	PUSHJ P,COMRD5
 	 JFCL
+ifn 0,[	;; BV: why have a separate partial table when there is a complete?
 	MOVEI T,ENALEN-1	;Number of ENABLE options
 COMEN2:	CAME A,ENATAB(T)	;Match?
 	 SOJGE T,COMEN2		; No, keep checking.
 	JUMPL T,[CERR UUO,[Unknown ENABLE/DISABLE option]]
 	XCT ENAACT(T)
+]
+.else [	;; Special case
+	camn a,[asciz /ALL/]
+	 jrst [ tro d,-1
+		jrst comen1 ]
+	movei t,nprivs-1
+comen2:	hlrz tt,prvtab(t)
+	came a,@tt
+	 SOJGE T,COMen2		; No, keep checking.
+	JUMPL T,[CERR UUO,[Unknown ENABLE/DISABLE option]]
+	tro d,@prvtab(t)
+]
 	JRST COMEN1
 
+ifn 0,[
 ENATAB:	ASCII /ALL/
 	ASCII /OPERA/
 	ASCII /WHEEL/
@@ -6653,6 +6710,7 @@ ENALEN==.-ENATAB
 ENAACT:	SETO D,
 	TRO D,SC%OPR
 	TRO D,SC%WHL
+]
 
 DOENA:	MOVEI 1,.FHSLF
 	RPCAP			;Get your capabilities.
@@ -6690,6 +6748,9 @@ PRVTAB:	[ASCIZ /WHEEL/],,SC%WHL			;Privs whose status we
 	[ASCIZ /ENQ-DEQ/],,SC%ENQ
 	[ASCIZ /ARPANET-WIZARD/],,SC%NWZ
 	[ASCIZ /ABSOLUTE-ARPANET-SOCKETS/],,SC%NAS
+ifdef sc%cha,[
+	[ASCIZ /CHAOSNET-ACCESS/],,SC%CHA
+]
 NPRIVS==.-PRVTAB
 
 COMDIS:	SKIPN USERID
@@ -6701,16 +6762,31 @@ IFN OZ,	 PUSHJ P,AUTLOG
 COMDI1:	JUMPLE BC,DODIS		;Jump if no options left
 	PUSHJ P,COMRD5
 	 JFCL
+ifn 0,[	;; BV: why have a separate partial table when there is a complete?
 	MOVEI T,ENALEN-1
 COMDI2:	CAME A,ENATAB(T)
 	 SOJGE T,COMDI2		; No, keep checking.
 	JUMPL T,[CERR UUO,[Unknown ENABLE/DISABLE option]]
 	XCT DISACT(T)
+]
+.else [	;; Special case
+	camn a,[asciz /ALL/]
+	 jrst [ trz d,-1
+		jrst comdi1 ]
+	movei t,nprivs-1
+comdi2:	hlrz tt,prvtab(t)
+	came a,@tt
+	 SOJGE T,COMDI2		; No, keep checking.
+	JUMPL T,[CERR UUO,[Unknown ENABLE/DISABLE option]]
+	trz d,@prvtab(t)
+]
 	JRST COMDI1
 
-DISACT:	TRZ D,SC%WHL+SC%OPR
-	TRZ D,SC%WHL
+ifn 0,[
+DISACT:	TRZ D,-1	; SC%WHL+SC%OPR
 	TRZ D,SC%OPR
+	TRZ D,SC%WHL
+]
 
 DODIS:	MOVEI 1,.FHSLF
 	RPCAP
