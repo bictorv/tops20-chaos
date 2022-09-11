@@ -1,3 +1,5 @@
+;<FINGER>FINGER.MAC.134, 29-Aug-2022 16:27:21, Edit by BV
+; Support Chaosnet (if CHAOS==1). And don't include detached by default.
 ;<FINGER>FINGER.MAC.133, 21-May-2003 15:34:50, Edit by MRC
 ; Clean up last logout host message
 ;<FINGER>FINGER.MAC.132,  9-Feb-2003 11:47:30, Edit by MRC
@@ -12,8 +14,10 @@
 
 VMAJOR==5
 VMINOR==4
-VEDIT==^D133
+VEDIT==^D134
 VWHO==5				;4 = Stanford, 5 = Panda
+
+IFNDEF CHAOS,<CHAOS==1>		;Support for Chaosnet
 
 ;This version is largely written by Frank M. Fujimoto, and was based on Mike
 ; Peeler's Finger, which in turn was a completed version of Mark Crispin's
@@ -23,7 +27,7 @@ VWHO==5				;4 = Stanford, 5 = Panda
 SEARCH MONSYM,MACSYM,FNGDEF,JOBDAT
 .TEXT "FINGER/SAVE"
 .TEXT "/SYMSEG:PSECT:CODE"
-.REQUIRE HSTNAM			;Host name and protocol lookup routines
+.REQUIRE SYS:HSTNAM		;Host name and protocol lookup routines
 .REQUIRE GETLOC			;Routine to get a location
 .REQUIRE SYS:MACREL
 ASUPPRESS
@@ -190,7 +194,10 @@ FLAG. FL%USR			;We are doing a list of usernames
 FLAG. FL%CID			;Idle time using last CPU
 FLAG. FL%TID			;Idle time using last TTY input
 FLAG. FL%NLI			;Working with people not logged in
-DEF%FL==FL%IDT			;Default flags
+ifn chaos,<
+FLAG. FL%CHA			; Doing Chaosnet finger
+>
+DEF%FL==0 ;FL%IDT			;Default flags
 
 ;Definitions for finger list
 .FDTYP==0			;Type of thing to finger
@@ -216,7 +223,11 @@ HLPFIL:	ASCIZ \HLP:FINGER.HLP\	;Print the reference manual
 
 ;Host name parse lists
 
-HSTTAB:	[ASCIZ \TCP\],,NETTCP	;Always prefer TCP to Pup
+HSTTAB:
+ifn chaos,<
+	[asciz \Chaos\],,NETCHA	;Prefer Chaos over TCP
+>
+	[ASCIZ \TCP\],,NETTCP	;Always prefer TCP to Pup
 	[ASCIZ \Pup\],,NETPUP
 	0
 
@@ -1644,30 +1655,76 @@ FNGPRT:	STKVAR <<NETBUF,NETBFL>,NETCTR> ;Data buffer
 	   ERJMP .+1
 	  CALLRET OCRLF
 	ENDIF.
-	MOVE A,NETJFN		;Get JFN to write to
-	HRROI B,UNAM		;Username ("local part") of foreign user
-	SETZ C,
-	SOUT%
-	HRROI B,[ASCIZ \/W\]
-	TXNE Q,FL%WHO		;Wants whois info?
+ifn chaos,<
+	txne q,fl%cha		;Chaos handles this in the RFC
+	ifskp.
+>
+	 MOVE A,NETJFN		;Get JFN to write to
+	 HRROI B,UNAM		;Username ("local part") of foreign user
+	 SETZ C,
 	 SOUT%
-	HRROI B,CRLF
-	SOUTR%			;Force buffer on the CRLF
+	 HRROI B,[ASCIZ \/W\]
+	 TXNE Q,FL%WHO		;Wants whois info?
+	  SOUT%
+	 HRROI B,CRLF
+	 SOUTR%			;Force buffer on the CRLF
+ifn chaos,<
+	endif.
+>
 	DO.
 	  MOVE A,NETJFN		;See if any network input available
 	  SIBE%
 	   SKIPA C,B		;Yes
 	    MOVX C,1		;No, default to just one byte
-	  CAILE C,5*NETBFL	;Bounds check
-	   MOVX C,5*NETBFL	;Cut down to buffer size
+ifn chaos,<
+	  txne q,fl%cha
+	  ifnsk.		;Fewer 8-bit bytes 
+	   CAILE C,4*NETBFL	;Bounds check
+	    MOVX C,4*NETBFL	;Cut down to buffer size
+	  else.
+>
+	   CAILE C,5*NETBFL	;Bounds check
+	    MOVX C,5*NETBFL	;Cut down to buffer size
+ifn chaos,<
+	  endif.
+>
 	  MOVEM C,NETCTR
 	  HRROI B,NETBUF
+ifn chaos,<			;Need 8-bit bytes
+	  txne q,fl%cha
+	   hrli b,(point 8)
+>
 	  SIN%			;Slurp up the buffer
 	  IFNJE.
 	    MOVX A,.PRIOU	;Now output it to the terminal
 	    HRROI B,NETBUF
+ifn chaos,<			;Need 8-bit bytes
+	    txne q,fl%cha
+	     hrli b,(point 8)
+>
 	    MOVE C,NETCTR
-	    SOUT%
+ifn chaos,<
+	    txne q,fl%cha
+	    ifnsk.
+	     ;; Less efficient but needed for translation
+	     do.
+	      ildb a,b
+	      caie a,215	;Chaos newline
+	      ifskp.
+	       call ocrlf
+	      else.
+	       cain a,211	;Chaos tab
+	        movei a,11
+	       call outchr
+	      endif.
+	      sojg c,top.
+	     od.
+	    else.
+>
+	     SOUT%
+ifn chaos,<
+	    endif.
+>
 	    LOOP.		;Try again
 	  ENDIF.
 	ENDDO.
@@ -1677,6 +1734,52 @@ FNGPRT:	STKVAR <<NETBUF,NETBFL>,NETCTR> ;Data buffer
 	CALLRET OCRIF
 
 	ENDSV.
+
+ifn chaos,<
+;; How to set up a Chaosnet connection to finger a remote host
+NETCHA:	MOVE A,[POINT 7,NETSTR]	;Set pointer to JFN string
+	MOVE B,[POINT 7,[ASCIZ \CHA:\]]
+	CALL COPSTR
+	MOVE B,[POINT 7,SAVHST]	;Tack on host name
+	;;CALL COPSTR
+	;; Need to quote all dots
+	do.
+	 ildb c,b
+	 jumpe c,endlp.
+	 caie c,"."
+	 ifskp.
+	  movei c,26		;^V
+	  idpb c,a
+	  movei c,"."
+	 endif.
+	 idpb c,a
+	 loop.
+	od.
+	MOVE B,[POINT 7,[ASCIZ \.NAME\]] ;For the finger contact
+	CALL COPSTR
+	TXNE Q,FL%WHO		;Wants whois info?
+	ifnsk.
+	 move B,[point 7,[ASCIZ \_/W\]]	;Use _ for space, and ^V
+	 call copstr
+	endif.
+	skipe unam
+	ifnsk.
+	 movei b,"_"		;_ for space
+	 idpb b,a
+	 move B,[point 7,UNAM]	;Username ("local part") of foreign user
+	 call copstr
+	endif.
+	SETZ B,
+	IDPB B,A
+	MOVX A,GJ%OLD!GJ%SHT	;Old file, short form
+	HRROI B,NETSTR
+	GTJFN%
+	 ERJMP ERRMSG		;Shouldn't get here
+	MOVEM A,NETJFN
+	MOVX B,<<FLD ^D8,OF%BSZ>!<<^D8>B17>!OF%RD!OF%WR>
+	txo q,fl%cha		;Note we're doing Chaos
+	CALLRET FNGPRT		;Do Finger protocol
+>; chaos
 
 NETPUP:	MOVE A,[POINT 7,NETSTR]	;Set pointer to JFN string
 	MOVE B,[POINT 7,[ASCIZ \PUP:0!J.\]]
