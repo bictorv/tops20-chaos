@@ -1,3 +1,6 @@
 # Emacs
 *~
 .#*
+*.gz
+*.tpk
+*.tpr
