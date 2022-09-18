@@ -51,7 +51,7 @@ Both simple RFC-ANS protocols and stream protocols seem to work.
 
 `GTDOM%` handles the CHaosnet class (3). (There are not yet MACRO symbols for the classes.)
 
-`CHANM%` uses `GTDOM%`, so works. See [documentation](CHANM.md).
+`CHANM%` uses `GTDOM%`, so works. See [documentation](doc/CHANM.md).
 
 ### Server programs
 
@@ -67,6 +67,11 @@ Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html
 - To open a connection to a host, open `CHA:`*host*`.`*contact* as the documentation says. Here *host* can be an octal Chaosnet address or a host name whose address can be found in DNS (using the `GTDOM%` system call). If the name contains dots (.), make sure to quote them with `^V` since the file name parsing will otherwise complain.
 - If the *contact* contains arguments, similarly quote special characters with `^V`. You can/may/should use underscore (`_`) for space (they will become spaces again on the net).
 - Before closing the connection with `CLOSF%`, you may want to make sure your output has reached the other end. This can be done using `SOUTR` or the `.MOSND` operation for `MTOPR`, possibly followed by `.MOEOF` (to send an EOF) and `.MONOP` (to wait for it to get acked). This is silly, but as it is, needed/useful. See e.g. `<CHAOS.SYSTEM>CHAFIN.MAC`.
+
+**New JSYS**: [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTDOM%`.)
+
+Some supplemental documentation for JSYSes with extended functionality: [RPCAP%/EPCAP%](doc/EPCAP.md), [SMON%/TMON%](doc/SMON.md), [NTINF%](doc/NTINF.md), [OPENF%](doc/OPENF.md), [MTOPR%](doc/MTOPR.md)
+
 
 ## What does not work yet
 
