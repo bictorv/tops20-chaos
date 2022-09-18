@@ -1,0 +1,81 @@
+title telser
+search monsym
+
+stapag==100			; where to map our (trivial) stat file
+stats==stapag*1000		; where stats actually start
+stagtf==stats+1			; # times CHA:.TELNET failed
+staopf==stats+2			; # times opening said failed
+staanf==stats+3			; # times atnvt failed
+stastf==stats+4			; # times initial ^C goose failed
+starlf==stats+5			; # times rljfn after failing openf failed
+staclf==stats+6			; # times closf after failing atnvt failed
+stasmf==stats+7			; # times smon failed
+stacon==stats+10		; successful connections
+
+jfn=10
+
+go:	reset
+	movei 1,.sfnvt		; say nvt logins
+	movei 2,1		;  allowed
+	smon
+	 erjmp [aos stasmf	; if fails, count it and try anyway
+		jrst .+1]
+	movsi 1,(gj%sht)
+	hrroi 2,[asciz /SYSTEM:TELSER-STATISTICS.BIN/]
+	gtjfn
+	 erjmp goon		; oh well, no stats for you, buster
+	move 5,1		; save it here in case
+	movei 2,of%wr+of%rd
+	openf			; try to open it
+	 erjmp [move 1,5	; get back original jfn
+		rljfn		; get rid of it
+		 erjmp goon
+		jrst goon]	; proceed without stats
+	movss 1			; build source: <jfn,,page 0>
+	move 2,[.fhslf,,stapag]	; where to map it
+	movsi 3,(pm%rd+pm%wr)
+	pmap			; map it in
+	 erjmp [move 1,5	; oh well, just flush the stat jfn
+		closf
+		 erjmp goon
+		jrst goon]
+;; note that we never clear the error counters; they just build up
+;; forever until cleared by hand, I guess.
+
+goon:
+loop:	movsi 1,(gj%sht)
+	hrroi 2,[asciz /CHA:.TELNET/]
+	gtjfn
+	 erjmp [aos stagtf
+		jrst wait]
+	move jfn,1
+	move 2,[10b5+of%rd+of%wr]
+	openf
+	 erjmp [aos staopf
+		jrst nocon]
+	atnvt
+	 erjmp [aos staanf
+		jrst nonvt]
+	movei 2,3		;goose a ^C
+	sti
+	 erjmp [aos stastf
+		jrst wait]
+	aos stacon		;count this connection
+	jrst loop		;back for more
+
+nocon:	move 1,jfn
+	rljfn
+	 erjmp [aos starlf
+		jrst .+1]
+	jrst wait
+
+nonvt:	move 1,jfn
+	closf
+	 erjmp [aos staclf
+		jrst .+1]
+
+wait:	movei 1,=1000
+	disms
+	jrst loop
+
+end go
