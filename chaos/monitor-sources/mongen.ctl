@@ -101,6 +101,7 @@
 @COMPILE MON:TTYSRV.MAC R:TTYSRV	;Teletype service routines
 @COMPILE MON:NRTSRV.MAC R:NRTSRV	;NRT service routines
 @COMPILE MON:RSXSRV.MAC R:RSXSRV	;Teletype service routines
+@compile mon:tvtdef.mac r:tvtdef	; TVT definitions
 @COMPILE MON:TVTSRV.MAC R:TVTSRV	;Internet terminal service
 @COMPILE MON:CIDLL.MAC R:CIDLL		;CI data link layer
 @COMPILE MON:CTHSRV.MAC R:CTHSRV	;CTERM terminal support
@@ -121,7 +122,8 @@
 @COMPILE MON:ENQSRV.MAC R:ENQSRV	;[7.1072] Cluster-wide ENQ/DEQ protocol
 @COMPILE MON:DOB.MAC R:DOB		;[7.1081] DOB JSYS and code
 @COMPILE MON:PIPE.MAC R:PIPE		;Data pipes
-@compile mon:site.mac+mon:chaos.mac r:chaos
+@compile mon:site.mac+mon:chaos.mac r:chaos ; Chaosnet support
+@compile mon:ttchdv.mac r:ttchdv	; Chaosnet NVT support
 @COMPILE MON:KLHSRV.MAC R:KLHSRV	;KN10 routines
 					;Monitor name string and version
 @COMPILE MON:NAMMON.MAC+MON:VEDIT.MAC+MON:VERSIO.MAC R:VERSIO
@@ -170,7 +172,7 @@
 *R:IMPANX/S,R:IMPDV/S,R:NISRV/S,R:NIUSR/S,R:IPNIDV/S,R:IPCIDV/S, -
 *R:MNETDV/S,R:GTDOM/S,R:IPFREE/S,R:IPIPIP/S,R:TCPCRC/S,R:TCPTCP/S,R:TCPBBN/S,
 *R:TCPJFN/S,R:TVTSRV/S, -
-*R:chaos/s, -
+*R:chaos/s,r:ttchdv/s, -
 *R:PIPE/S,R:KLHSRV/S, -
 *R:CRYPT.REL/S,R:POSTLD.REL/S, -
 */NOLOCALS, -
