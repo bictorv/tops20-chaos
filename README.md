@@ -9,12 +9,13 @@ For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP enca
 See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
 
 ## Installation
+Begin by installing a Panda system and get Internet working on it.
 
 To generate the monitor, submit `<CHAOS.MONITOR-SOURCES>MONGEN.CTL`.
 
 To generate the exec, submit `<CHAOS.EXEC-SOURCES>EXCGEN.CTL`.
 
-You can compile the various programs in `<CHAOS.SYSTEM>` and install them as indicated in the `-READ-THIS-.TXT` file (see [below](#server-programs)).
+You can compile the various programs in `<CHAOS.SYSTEM>` and install them as indicated in the [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](blob/master/chaos/system/-read-this-.txt) file (see [below](#server-programs)).
 
 ## Configuration
 
@@ -25,11 +26,15 @@ In `SYSTEM:INTERNET.ADDRESS`, add the following parameters for your IPNI#0
 
 (Note that you may want to use short-but-nonambiguous keywords, since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), which you may occasionally want to use.)
 
+The Chaosnet host name is initialized from the IP host name, using `GTHST%`, which should match, of course. 
+
 ### DNS resolver
 
 To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address). Use the `DSERVE` directive in the config.
 
 You may also want to include the domain `Chaosnet.NET.` in your `RSEARCH` directives, to get shorthand addresses to all ITS hosts on Chaosnet.
+
+(Note that HOSTS.TXT is not used for Chaosnet host names, except for initializing the local host name using `GTHST%`, see above.)
 
 ### Chaosnet bridge
 You need to configure your [Chaosnet bridge](https://github.com/bictorv/chaosnet-bridge/blob/master/CONFIGURATION.md) to accept Chaos-over-IP from your TOPS-20 system, e.g. using
@@ -67,6 +72,7 @@ Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html
 
 - NVTs (Network Virtual Terminals) don't work, so no Supdup yet. I'm working on it!
 - DECnet is disabled for now, so that doesn't work.
+- SDDT isn't updated with new symbols.
 
 ## What should be done later
 
@@ -77,3 +83,7 @@ Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html
 ## Bugs
 
 Of course! Please report them to me.
+
+Known things:
+- `BUGINF FLKINT` when creating outgoing connections.
+- `BUGCHK IPIBLP` when lots of input coming in a connection.
