@@ -1,0 +1,219 @@
+	title	load
+	subttl	chaos load server (BV)
+
+	search	monsym
+
+ifndef tnx,<
+ife .osfail-<sixbit /TENEX/>,<tnx==1>
+ifn .osfail-<sixbit /TENEX/>,<tnx==0>
+>
+
+f=0
+a=1
+b=2
+c=3
+d=4
+e=5
+r=6
+t=10
+tt=11
+bp=12
+cn=13
+p=17
+
+.cocls==3
+.coans==5
+.mopks==26
+
+pdl:	block <pdlz==42>
+
+njobs:	block 1
+nusers:	block 1
+ldavg:	block 1
+share:	block 1
+pklen:	block 1
+
+start:	reset
+	move p,[iowd pdlz,pdl]
+	movei	a,.fhslf
+	setob	b,c
+	epcap
+	movsi	a,(gj%old!gj%sht)
+	hrroi	b,[asciz /CHA:.LOAD/]
+	gtjfn
+	 ercal	jerr
+	move	b,[8b5+of%rd+of%wr]
+	openf
+	 ercal	jerr
+	movem	a,njfn
+
+	;; Get number of users logged in,
+	;; not counting detached or operator
+	hrroi a,.jobrt		;Get number of job slots
+	getab
+	 ercal noans
+	movem a,njobs
+	setzm nusers
+	hrlz d,njobs
+	aobjn d,.+1		;Skip job 0
+fjob:	hrl a,d
+	hrri a,.jobtt		;Get terminal of job
+	getab
+	 ercal noans
+	jumple a,fjobz		;Don't count detached/nonx
+	hrrz a,d
+	hrroi b,a		;Get user nr in A
+	movei c,.jiuno
+	getji
+	 erjmp fjobz
+	hrrzs a			;Keep only user nr
+	;; Assume operator has nr 5, as usual
+	cain a,5		;Don't count operator
+	 jrst fjobz
+	jumpe a,fjobz		;Don't count not-logged-in
+	aos  nusers		;Count a user
+fjobz:	aobjn d,fjob
+
+	;; now get load ave
+	;; Assume no class scheduling
+	;; Index 14 is 1-minute avg, 15 is 5-minute
+	move 1,[14,,.systa]
+	getab
+	 ercal noans
+	movem 1,ldavg
+
+	;; Compute fair share: 100*(1-ldavg/(nusers+1))
+	;; Need to convert nusers to float and then divide and multiply
+	move d,nusers
+	aos d
+	fltr d,d
+	move c,ldavg
+	fdv c,d
+	move b,[1.0]
+	fsb b,c
+	move c,[100.0]
+	fmp b,c
+	movem b,share
+
+	;; then print "Fair Share: x%" and "Users: n." separated by CRLF and send off
+mkpkt:	move a,datptr
+	move b,[point 7,[asciz "Fair Share: "]]
+	call strcpy
+	fixr b,share
+	movei c,^d10
+	nout
+	 ercal jerr
+	move b,[point 7,[asciz "%"]]
+	call strcpy
+	movei b,15
+	idpb b,a
+	movei b,12
+	idpb b,a
+	move b,[point 7,[asciz "Users: "]]
+	call strcpy
+	move b,nusers
+	movei c,^d10
+	nout
+	 ercal jerr
+	move b,[point 7,[asciz "."]]
+	call strcpy
+	setz b,
+	idpb b,a
+
+	;; Get length
+	move a,datptr
+	call strlen
+	movem b,pklen
+	move b,[byte (8) .coans,0,0,0]	;ANS
+	movem b,pkt
+	move b,pklen
+	dpb b,[point 12,pkt,31]	;Store length
+
+comment |
+trace:	hrroi a,[asciz "Share: "]
+	psout
+	movei a,.priou
+	fixr b,share
+	movei c,^d10
+	nout
+	 ercal jerr
+	hrroi a,[asciz "%, users: "]
+	psout
+	movei a,.priou
+	move b,nusers
+	nout
+	 ercal jerr
+	hrroi a,[asciz "., pklen: "]
+	psout
+	movei a,.priou
+	move b,pklen
+	nout
+	 ercal jerr
+	hrroi a,[asciz "
+"]
+	psout
+|
+
+sndpkt:	move	a,njfn
+	movei	b,.mopks	; Send it off
+	movei	c,pkt
+	mtopr
+	movei	b,.monop	; Wait for it to get there
+	mtopr
+	 ercal jerr
+	closf
+	 ercal jerr
+	haltf
+
+strcpy:	ildb c,b
+	jumpe c,rt
+	idpb c,a
+	jrst strcpy
+rt:	ret
+
+strlen:	setz b,
+strle1:	ildb c,a
+	aos b
+	jumpn c,strle1
+	ret
+
+; No answer
+noans:	call errmsg		;Print error msg locally too
+	move	a,[byte (8) .cocls,0,0,0] ; Send CLS
+	movem	a,pkt
+	move a,datptr
+	move	b,[point 7,[asciz /Local error: /]]
+	call strcpy
+	hrloi b,.fhslf
+	setz 3,
+	erstr
+	 jfcl
+	 jfcl
+	setz b,
+	idpb b,a
+	move	a,datptr
+	call strlen
+	dpb	b,[point 12,pkt,31] ; Store length
+	jrst	sndpkt
+
+jerr:	call errmsg
+	haltf
+
+errmsg:	hrroi	1,[asciz /
+?JSYS error: /]
+	psout
+	movei	1,.priou
+	hrloi	2,.fhslf
+	setz	3,
+	erstr
+	 jfcl
+	 jfcl
+	ret
+
+
+datptr:	point 	8,pkt+4
+
+njfn:	block	1
+pkt:	block	50
+
+	end	start
