@@ -438,5 +438,51 @@ CVTUPR:	MOVE FX,CVUPKT		;GET BACK PACKET
 	MOVE T2,CVUPDD		;POINT TO DYNAMIC AREA AGAIN
 	JRST CVTUPP		;GO SEE IF MORE TO COME
 
+;CVRRH - CVT device dependent "return remote host" code
+;
+; Given the line #, returns the originating hostname, line and
+; network type. Places this info in the users NTINF% .NWRRH 
+; argument block.  NTINF has already checked the user arguments 
+; for validity.
+;
+; Call with T1/ address of internal arg block
+;
+;   ARG+.NWABC/ # of bytes for hostname
+;   ARG+.NWFNC/ not used
+;   ARG+.NWNNP/ byte pointer to store hostname string
+;   ARG+.NWLIN/ address of dynamic data for line
+;   ARG+.NWTTF/ flags, and network and terminal types
+;   ARG+.NWNNU/ node # word 1 (returned)
+;   ARG+.NWNU1/ node # word 2 (returned)
+;
+; Returns + 1 on error with T1/ error code
+;	  + 2 on success
+
+	SWAPCD
+
+CVRRH::	STKVAR <UAB>
+	MOVEM T1,UAB		;SAVE POINTER TO ARG BLOCK
+	MOVX T4,NW%CHA		;SET NETWORK TYPE
+	DPB T4,[POINT 9,.NWTTF(T1),17] ;STORE NETWORK TYPE
+	NOSKED			;DON'T LET connection GO AWAY
+	MOVE T2,.NWLIN(T1)	;GET dynamic data ADDRESS
+        LOAD T3,ptcon,(T2)	;GET connection IF IT EXISTS
+	JUMPE T3,[OKSKED	;GO SET "NO NODE NAME KNOWN" AND RETURN
+		   CALLRET CVRRH1]		
+	LOAD T3,chahst,(T3)	;GET FOREIGN HOST
+	OKSKED			;ALL OKAY AGAIN
+	MOVEM T3,.NWNNU(T1)	;SAVE IT
+	MOVE T2,.NWNNP(T1)	;GET POINTER FOR DEPOSITING HOSTNAME
+	MOVX T1,.GTHNS!GD%QCL	;RETURN PRIMARY NAME
+	MOVEI T4,3		;Chaosnet class
+	GTDOM%
+	 ERJMP CVRRH1  		;[7230] Couldn't find host name - use number
+	TDZA T1,T1		;HAVE A NODE NAME
+CVRRH1:	MOVX T1,NW%NNN		;GET "NO NODE NAME KNOWN" FLAG
+	MOVE T3,UAB
+	SKIPE T1 		;GOT A NODE NAME ?
+	IORM T1,.NWTTF(T3)	;NO - SET THE "NO NODE NAME KNOWN" FLAG
+	RETSKP
+
 >				;END IFN .CHFLG AT TOP
 
