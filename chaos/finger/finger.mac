@@ -237,6 +237,9 @@ TTYTAB:	TABTOP
 
 SWITBL:	TABTOP
 	CMDENT ARPANET,.INTER,CM%INV
+ifn chaos,<
+	CMDENT CHAOSNET,.CHAOS
+>
 IFDEF ID%TTY,<
 	CMDENT CPU-IDLE,.CIDL
 >;IFDEF ID%TTY
@@ -660,11 +663,14 @@ PRSER0:	TXNE Q,FL%JCL		;Are we doing JCL?
 .PTY:	MOVX B,GL%PTY!GL%BAT	;Only type out PTYs or batch
 	JRST SWIRET
 
-.NETWO:	MOVX B,GL%ETH!GL%INT	;Only type network TTYs
+.NETWO:	MOVX B,GL%ETH!GL%INT!gl%cha	;Only type network TTYs
 	JRST SWIRET
 
 .ETHER:	MOVX B,GL%ETH		;Only type ethernet TTYs
 	JRST SWIRET
+
+.chaos:	movx b,gl%cha
+	jrst swiret
 
 .INTER:	MOVX B,GL%INT		;Only type internet TTYs
 SWIRET:	TXO B,GL%TST		;If one of these, we will want to test

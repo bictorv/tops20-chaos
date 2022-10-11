@@ -190,7 +190,7 @@ PUPBUF::BLOCK 1			;Location of Ether free storage
 .PUPBU::BLOCK 1			;Table number for PUPBUF
 LOCBUF:	BLOCK .TDLLN		;Hold TTYLOC location here
 OVRFLW:	BLOCK 1			;Whether we have an overflow below
-
+NTIBUF:	BLOCK .NWNU1+1
 .ENDPS
 
 .PSECT PURE
@@ -243,6 +243,7 @@ IFG ...XXX,<
 ;	      A/ Updated byte pointer
 ;	      B/ Bits in left half
 ;		 GL%TST (B2)  - Set if a string (even if null) was produced
+;		 GL%CHA (B10) - This was a Chaosnet location
 ;		 GL%USD (B11) - This terminal is in use
 ;		 GL%HWR (B12) - This was a hardwired terminal
 ;		 GL%DIA (B13) - This was a dialin
@@ -299,6 +300,11 @@ GETLOC::SAVEAC <C,D>
 	 SKPA
 	  CALLRET .DOPTY	;Yes, do it
 	MOVEM A,PTR		;Save our pointer
+	MOVEI B,.TTDES(TTYNUM)	;Get the terminal designator
+	call chchk		;Check if it is Chaos
+	ifskp.
+	 retskp			;Success
+	endif.
 	MOVEI A,.TTDES(TTYNUM)	;Get the terminal designator
 	HRROI B,D		;Want to put the result in D
 	MOVEI C,.JIJNO		;Get the job number
@@ -317,6 +323,77 @@ GETLOC::SAVEAC <C,D>
 	 CALLRET .DORMT		;Yes, do it
 	CALLRET .DOHWR		;Otherwise do hardwired
 	ENDSV.
+
+;; Dest bp in A, terminal designator in B
+;; Ret +1: success, name on dest (it was a Chaos CVT)
+;;     +2: fail, try something else
+chchk:	stkvar <ptr>
+	movem a,ptr
+	;; Set up arg block for NTINF
+	movei a,ntibuf
+	movei c,.nwnu1+1
+	movem c,.nwabc(a)
+	movei c,.nwrrh
+	movem c,.nwfnc(a)
+	movem b,.nwlin(a)
+	move c,[point 7,thisnm]
+	movem c,.nwnnp(a)
+	ntinf%
+	 erjmp r
+	movei a,ntibuf
+	move c,.nwttf(a)
+	ldb b,[point 9,c,17]
+	;; Was it Chaosnet?
+	caie b,nw%cha
+	 ret
+	hrrzs c
+	;; And CVT?
+	caie c,nw%cn
+	 ret
+	txz fl,gl%all-gl%cha
+	 txze fl,gl%tst
+	  txne fl,gl%cha
+	   skpa
+	    retskp
+	txo fl,gl%usd!gl%cha!gl%tst
+	move c,.nwttf(a)
+	txne c,nw%nnn
+	ifnsk.
+	 ;; No Name kNown, use number
+	 move b,.nwnnu(a)
+	 move a,[point 7,thisnm]
+	 movei c,^d8
+	 nout%
+	  erjmp .+1
+	endif.
+	;; Now for some copy-paste due to STKVARs
+	MOVE A,PTR		;Get the pointer back
+	txnn fl,gl%loc!gl%des
+	 txnn fl,gl%pre
+	  ifskp.
+	   move b,[point 7,[asciz "Chaos: "]]
+	   call cpystr
+	  endif.
+	TXNE FL,GL%LOC		;Do we have a TTYLOC?
+	IFSKP.			;No...
+	  CALL CHKDEF		;Check to see if we have any defaults
+	   RETSKP		;Yes, go back now
+	ENDIF.
+	MOVE B,[POINT 7,THISNM]	;Get the current name
+	TXNN FL,GL%DES		;Only description?
+	 TXNN FL,GL%LOC		;Using TTYLOC?
+	IFNSK.
+	  CALL CPYSTR		;Drop it in
+	  RETSKP		;No, go back now
+	ENDIF.
+	SETZM THISNM+3		;Limit hostname to 15 chars if TTYLOC
+	CALL CPYSTR
+	MOVEI B,":"		;Delimit the host name
+	IDPB B,A
+	MOVEI B," "		;With ": "
+	IDPB B,A
+	CALL ADDLOC		;Now add the TTYLOC location
+	RETSKP
 
 .DOPTY:	STKVAR <CTRLJB,CTRLUS,PTR>
 	MOVEM A,PTR

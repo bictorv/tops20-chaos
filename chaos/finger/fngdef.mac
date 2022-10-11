@@ -136,6 +136,7 @@ GL%LOC==1B1			;Use TTYLOC, cancels out GL%PRE if TTYLOC
 GL%TST==1B2			;Only return string if tty passes set bit test
 GL%TIP==1B3			;Suppress "Tip-" if this was a tip
 GL%DES==1B4			;Only return description a la TTYLOC.CMD
+GL%CHA==1B10			;This was a Chaosnet location
 GL%USD==1B11			;This terminal was in use
 GL%HWR==1B12			;This was a hardwired terminal
 GL%DIA==1B13			;This was a dialin
@@ -143,7 +144,7 @@ GL%BAT==1B14			;This was a batch job
 GL%PTY==1B15			;This was a PTY (other than batch)
 GL%INT==1B16			;This was an Internet location
 GL%ETH==1B17			;This was an Ethernet location
-GL%ALL==GL%HWR!GL%DIA!GL%BAT!GL%PTY!GL%INT!GL%ETH ;All types of ttys
+GL%ALL==GL%HWR!GL%DIA!GL%BAT!GL%PTY!GL%INT!GL%ETH!GL%CHA ;All types of ttys
 
 ;Pup and Internet definitions in case they aren't defined
 
