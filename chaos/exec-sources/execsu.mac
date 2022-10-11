@@ -5330,6 +5330,9 @@ IFN PANDASW,<	;[9]
 	XWD [ASCIZ/(TCP)/],NW%TV ;[4419] TVT (TCP) terminal
 	XWD [ASCIZ/(CTM)/],NW%CH ;[4419] CTERM terminal
 	XWD [ASCIZ/(LAT)/],NW%LH ;[4419] LAT terminal
+ifn chasw,<
+	XWD [ASCIZ/(Chaos)/],NW%CN ; Chaos NVT terminal
+>
 	%L%SIZ==.-%L%TAB	;[4419] Make size of table
 	ENDSV.			;[4419] End of STKVAR at %L
 

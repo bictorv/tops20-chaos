@@ -2697,6 +2697,16 @@ IFN PANDASW,<	;[13]
 	  JRST SYSTS6		;PROBLEM
 	 JRST SYST5A
 	ENDIF.
+ifn chasw,<
+	caie c,nw%cha		;Chaosnet?
+	ifskp.
+	 move d,chadel
+	 movem d,hstdel		;set up pre/suffix
+	 call chahst		;Go print it
+	  jrst systs6
+	 jrst syst5a
+	endif.
+>
 	JRST SYSTS6		;UNKNOWN NETWORK TYPE
 SYST5A:	MOVE A,COJFN		;GET CURRENT HORIZONTAL POSITION
 	RFPOS			; ..
@@ -2734,6 +2744,9 @@ TCPDEL:	 [ASCIZ//],,[ASCIZ/(TCP)/]	;SET UP HOST PREFIX AND SUFFIX
 NRTDEL:	 [ASCIZ//],,[ASCIZ/(NRT)/]	;SET UP HOST PREFIX AND SUFFIX
 CTMDEL:	 [ASCIZ//],,[ASCIZ/(CTM)/]	;SET UP HOST PREFIX AND SUFFIX
 LATDEL:	 [ASCIZ//],,[ASCIZ/(LAT)/]	;SET UP HOST PREFIX AND SUFFIX
+ifn chasw,<
+chadel:	 [asciz //],,[asciz/(Chaos)/]	;Set up host prefix and suffix
+>
 
 DNAHST:	SKIPE D,(C)		;[7.1008] GET DECNET NODE NUMBER
 	TXNN B,NW%NNN		;HAVE A NODE NAME ?
@@ -2801,6 +2814,19 @@ TCPHST:	SKIPE D,(C)		;[7.1008] GET HOST NUMBER, RETURN IF NOT
 	  ERJMP R
 	RETSKP
 
+ifn chasw,<
+chahst:	SKIPE D,(C)		;GET Chaosnet NODE NUMBER
+	TXNN B,NW%NNN		;HAVE A NODE NAME ?
+	RETSKP			;YES
+	SKIPE HSTNAM		;[4412] No node name, but did NTINF% fill in anything?
+	RETSKP			;[4412] NTINF% did it for us
+	HRROI A,HSTNAM		;OUTPUT TO HSTNAM STRING
+	MOVEI C,8		;OUTPUT RADIX IS octal
+	move b,d
+	NOUT			;NO - THEN OUTPUT IT
+	 ERJMP R
+	RETSKP
+>
 
 
 
