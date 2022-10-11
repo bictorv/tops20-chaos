@@ -12,9 +12,16 @@ staclf==stats+6			; # times closf after failing atnvt failed
 stasmf==stats+7			; # times smon failed
 stacon==stats+10		; successful connections
 
+pdl: block <pdlz==42>
+
 jfn=10
 
 go:	reset
+	move p,[iowd pdlz,pdl]
+	move 1,[sixbit /TELSER/]
+	setnm
+	 erjmp [ call jerr
+		jrst .+1]
 	movei 1,.sfnvt		; say nvt logins
 	movei 2,1		;  allowed
 	smon
@@ -42,8 +49,9 @@ go:	reset
 ;; note that we never clear the error counters; they just build up
 ;; forever until cleared by hand, I guess.
 
-goon:
-loop:	movsi 1,(gj%sht)
+goon:	skipa
+loop:	 haltf
+	movsi 1,(gj%sht)
 	hrroi 2,[asciz /CHA:.TELNET/]
 	gtjfn
 	 erjmp [aos stagtf
@@ -55,6 +63,7 @@ loop:	movsi 1,(gj%sht)
 		jrst nocon]
 	atnvt
 	 erjmp [aos staanf
+		call jerr
 		jrst nonvt]
 	movei 2,3		;goose a ^C
 	sti
@@ -77,5 +86,15 @@ nonvt:	move 1,jfn
 wait:	movei 1,=1000
 	disms
 	jrst loop
+
+jerr:	hrroi 1,[asciz "JSYS error: "]
+	esout
+	movei 1,.priou
+	hrloi 2,.fhslf
+	setz 3,
+	erstr
+	 nop
+	 nop
+	ret
 
 end go
