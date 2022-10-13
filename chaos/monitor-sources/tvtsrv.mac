@@ -1746,7 +1746,7 @@ tvtdt1:: ;; Code from TTCHDV joins here
 ; terminal data block to be deassigned.
 
 	MOVE T2,TVTDLN		; Get line number
-repeat 0,<			;[9179] This code causes an extra hangup
+repeat 1,<			;[9179] This code causes an extra hangup
 	NOSKD1
 	CALL NTYCOF		; Start the carrier off action
 	OKSKD1
@@ -2133,10 +2133,15 @@ ENCTVT:	SETONE TSTVO,(TCB)	;[9117] Remember a packet should be sent
 
 	TVMSGZ==^D60		; size of buffer for TVTMSG in words
 
+ifn chaos,<
+cvtmsg::
+	skipa t2,[-1,,[asciz /system:chaosnet-login-message.txt/]]
+>
 TVTMSG::			; Routine to type out a greeting message
+	HRROI T2,[ASCIZ/SYSTEM:INTERNET-LOGIN-MESSAGE.TXT/]
+tvtmsz:: ;; Fall in here for other greetings
 	STKVAR <TVMSGJ,<TVMSGB,TVMSGZ>>
 	MOVX T1,<GJ%SHT!GJ%OLD>	; The file must allready exist
-	HRROI T2,[ASCIZ/SYSTEM:INTERNET-LOGIN-MESSAGE.TXT/]
 	GTJFN%			; Get the JFN
 	 ERJMP R	       	; assume file does not exist
 	MOVEM T1,TVMSGJ		; Save the JFN

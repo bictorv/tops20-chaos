@@ -869,6 +869,10 @@
 
 	EXTN <BRDTIM,DDMPF,MOSULE,HNGU0F,HNGU1F,BUGTL>
 
+ifn chaos,<
+	extn <cvtmsg,chkcvt>
+>
+
 	IFNDEF FTKLIPA,<FTKLIPA==-1> ;Default is include KLIPA support code
 	IFNDEF FTMSCP,<FTMSCP==0>   ;Default is no MSCP
 
@@ -1172,8 +1176,20 @@ SYSINP:	SKIPE CRJFLG		;IF CREATED JOB, GO SET IT UP.
 	JRST STCRJB		; ..
 	MOVE B,CTRLTT		;GET CONTROLLING TERMINAL
 	CALL CHKTVT		;ARE WE A TVT?
+ife chaos,<
 	 SKIPA			;NO
           CALL TVTMSG		;YES SO OUTPUT THE MESSAGE
+>
+ifn chaos,<
+	ifskp.
+          CALL TVTMSG		;YES SO OUTPUT THE MESSAGE
+	else.
+	 call chkcvt		;Are we a Chaos NVT?
+	 ifskp.
+	  call cvtmsg		;Yes, so output a greeting
+	 endif.
+	endif.
+>
 	MOVE T1,DBUGSW
 	CAIGE 1,2		;DEBUG MODE OPERATION?
 	JRST STEX		;NO, GO START EXEC
