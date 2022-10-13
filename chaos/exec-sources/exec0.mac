@@ -2702,6 +2702,7 @@ ifn chasw,<
 	ifskp.
 	 move d,chadel
 	 movem d,hstdel		;set up pre/suffix
+	 movei c,.nwnnu(a)
 	 call chahst		;Go print it
 	  jrst systs6
 	 jrst syst5a
