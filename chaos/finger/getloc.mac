@@ -360,11 +360,17 @@ chchk:	stkvar <ptr>
 	txne c,nw%nnn
 	ifnsk.
 	 ;; No Name kNown, use number
-	 move b,.nwnnu(a)
-	 move a,[point 7,thisnm]
-	 movei c,^d8
-	 nout%
-	  erjmp .+1
+	 skipn b,.nwnnu(a)
+	 ifskp.
+	  move a,[point 7,thisnm]
+	  movei c,^d8
+	  nout%
+	   erjmp .+1
+	 else.
+	  ;; Not even address known!
+	  move b,[asciz "?"]
+	  movem b,thisnm
+	 endif.
 	endif.
 	;; Now for some copy-paste due to STKVARs
 	MOVE A,PTR		;Get the pointer back
