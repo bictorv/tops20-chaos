@@ -9,13 +9,14 @@ For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP enca
 See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
 
 ## Installation
+
 Begin by installing a Panda system and get Internet working on it.
 
-To generate the monitor, submit `<CHAOS.MONITOR-SOURCES>MONGEN.CTL`.
+To generate the monitor, connect to `<CHAOS.MONITOR-SOURCES>` and submit `MONGEN.CTL`.
 
-To generate the exec, submit `<CHAOS.EXEC-SOURCES>EXCGEN.CTL`.
+To generate the exec, connect to `<CHAOS.EXEC-SOURCES>` and submit `EXCGEN.CTL`.
 
-You can compile the various programs in `<CHAOS.SYSTEM>` and install them as indicated in the [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](blob/master/chaos/system/-read-this-.txt) file (see [below](#server-programs)).
+You can compile the various programs in `<CHAOS.SYSTEM>` and install them as indicated in the [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](chaos/system/-read-this-.txt) file (see [below](#server-programs)).
 
 ## Configuration
 
@@ -24,24 +25,29 @@ In `SYSTEM:INTERNET.ADDRESS`, add the following parameters for your IPNI#0
 - `CHAOS-IP-GATEWAY:`*a.b.c.d* where *a.b.c.d* is the IP address of a [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) which is configured to accept Chaos-over-IP from the IP of your TOPS-20 system (see [below](#chaosnet-bridge)).
 - `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`.
 
-(Note that you may want to use short-but-nonambiguous keywords, since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), which you may occasionally want to use.)
+(Note that you may want to use short-but-nonambiguous keywords, since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), which you might perhaps occasionally want to use.)
 
 The Chaosnet host name is initialized from the IP host name, using `GTHST%`, which should match, of course. 
 
 ### DNS resolver
 
-To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address). Use the `DSERVE` directive in the config.
+To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it). Use the `DSERVE` directive in the config.
 
 You may also want to include the domain `Chaosnet.NET.` in your `RSEARCH` directives, to get shorthand addresses to all ITS hosts on Chaosnet.
 
 (Note that HOSTS.TXT is not used for Chaosnet host names, except for initializing the local host name using `GTHST%`, see above.)
 
 ### Chaosnet bridge
+
 You need to configure your [Chaosnet bridge](https://github.com/bictorv/chaosnet-bridge/blob/master/CONFIGURATION.md) to accept Chaos-over-IP from your TOPS-20 system, e.g. using
 
 `link chip` *x.y.z.w* `host` *nnnn* `myaddr` *mmmm*
 
 where *x.y.z.w* is the IP of your TOPS-20 system, *nnnn* is its Chaosnet address, and *mmmm* is the Chaosnet address of your cbridge on that subnet (in case it is on more than one).
+
+### Greetings (optional)
+
+The contents of `SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT`, if it exists, is printed on new Chaosnet TELNET connections, just like `SYSTEM:INTERNET-LOGIN-MESSAGE.TXT` is printed on new TCP TELNET connections.
 
 ## What works
 
@@ -55,27 +61,34 @@ Both simple RFC-ANS protocols and stream protocols seem to work.
 
 ### Server programs
 
-If you install `CHARFC.EXE` in `SYSTEM:`, and start it in a SYSJOB, it will get all unclaimed RFC packets, and search for server programs `SYSTEM:CHAOS`.*contact* and start them.  See [the Chaosnet report](https://chaosnet.net/amber.html#Server-Programs-1) for documentation. 
+If you install `CHARFC.EXE` in `SYSTEM:`, and start it in a SYSJOB, it will get all unclaimed RFC packets, and search for server programs `SYSTEM:CHAOS`.*contact* and start them.  See [the Chaosnet report](https://chaosnet.net/amber.html#Server-Programs-1) for documentation of `CHARFC`. 
 
-There are simple server programs for the `TIME`, `UPTIME`, `NAME`, `LIMERICK`, and `FILE` contacts, see [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](blob/master/chaos/system/-read-this-.txt).
+There are simple server programs for the `TIME`, `UPTIME`, `NAME`, `LIMERICK`, `FILE`, `LOAD`, and `TELNET` contacts, see [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](chaos/system/-read-this-.txt).
 
-The `FINGER` program has been fixed to finger Chaosnet hosts. You will need to recompile it (in `<CHAOS.FINGER>`) and install it (in `<SUBSYS>`).
+The `FINGER` program has been fixed to finger Chaosnet hosts. You will need to recompile it (see `<CHAOS.FINGER>-READ-THIS-.TXT`) and install it (in `<SUBSYS>`).
 
 ## Notes on programming
+
 Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) documentation.
 
 - To open a connection to a host, open `CHA:`*host*`.`*contact* as the documentation says. Here *host* can be an octal Chaosnet address or a host name whose address can be found in DNS (using the `GTDOM%` system call). If the name contains dots (.), make sure to quote them with `^V` since the file name parsing will otherwise complain.
 - If the *contact* contains arguments, similarly quote special characters with `^V`. You can/may/should use underscore (`_`) for space (they will become spaces again on the net).
-- Before closing the connection with `CLOSF%`, you may want to make sure your output has reached the other end. This can be done using `SOUTR` or the `.MOSND` operation for `MTOPR`, possibly followed by `.MOEOF` (to send an EOF) and `.MONOP` (to wait for it to get acked). This is silly, but as it is, needed/useful. See e.g. `<CHAOS.SYSTEM>CHAFIN.MAC`.
+- Before closing the connection with `CLOSF%`, you may want to make sure your output has reached the other end. This can be done using `SOUTR` or the `.MOSND` operation for `MTOPR`, possibly followed by `.MOEOF` (to send an EOF) and `.MONOP` (to wait for it to get acked). This should arguably be default behaviour of a normal `CLOSF%` without `CZ%ABT` (or with `CO%WCL`?), but as it is, it is needed/useful. See e.g. `<CHAOS.SYSTEM>CHAFIN.MAC`.
 
 **New JSYS**: [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTDOM%`.)
 
-Some supplemental documentation for JSYSes with extended functionality: [RPCAP%/EPCAP%](doc/EPCAP.md), [SMON%/TMON%](doc/SMON.md), [NTINF%](doc/NTINF.md), [OPENF%](doc/OPENF.md), [MTOPR%](doc/MTOPR.md)
+Some supplemental documentation for JSYSes with extended functionality: 
+
+  - [RPCAP%/EPCAP%](doc/EPCAP.md),
+  - [SMON%/TMON%](doc/SMON.md), 
+  - [NTINF%](doc/NTINF.md),
+  - [OPENF%](doc/OPENF.md),
+  - [MTOPR%](doc/MTOPR.md)
 
 
 ## What does not work yet
 
-- NVTs (Network Virtual Terminals) don't work, so no Supdup yet. I'm working on it!
+- Supdup NVTs (Network Virtual Terminals) don't work (but regular TELNET NVTs do work)
 - DECnet is disabled for now, so that doesn't work.
 - SDDT isn't updated with new symbols.
 
