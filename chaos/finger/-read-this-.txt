@@ -1,1 +1,1 @@
-Copy HSTNAM.REL from <SUBSYS> and GETLOC.REL from <FINGER> before compiling FINGER.
+Copy HSTNAM.REL from <SUBSYS>, and compile GETLOC.MAC before compiling FINGER.
