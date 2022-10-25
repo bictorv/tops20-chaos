@@ -1510,8 +1510,7 @@ CHPKIA::SAVET			;SAVE AC'S
 	SWAPCD
 
 ;ACCEPT AN RFC
-SNDOPN:	;bug.(inf,sndp1,chaos,soft,<Maybe send OPN>)
-	HLRZ PKT,CHAIBF(CONN)	;GET HEAD OF INPUT QUEUE
+SNDOPN:	HLRZ PKT,CHAIBF(CONN)	;GET HEAD OF INPUT QUEUE
 	JUMPE PKT,SNDOP1	;NONE THERE
 	LOAD T1,CPKOP,(PKT)	;GET THE OPCODE
 	CAIE T1,.CORFC		;THE RFC STILL HANGING AROUND?
@@ -1522,11 +1521,11 @@ SNDOPN:	;bug.(inf,sndp1,chaos,soft,<Maybe send OPN>)
 	CALL CHAQGF
 	JUMPE PKT,SNDOP1	;IF NOT THERE (?), DON'T FLUSH IT
 	RCALL RELPKT,5		;AND FLUSH IT
-SNDOP1:	;; @@@@ would make sense to not change state until sucessfully sent the OPN,
-	;; or even better, until the STS comes back? (In cbridge, Open_sent was a new state.)
-	;bug.(inf,sndp2,chaos,soft,<Send OPN>)
-	MOVEI T1,.CSOPN		;MAKE CONNECTION BE OPENED
+SNDOP1:	MOVEI T1,.CSOPN		;MAKE CONNECTION BE OPENED
 	HRRM T1,CHASTA(CONN)
+	;; BV: Note the conn is not fully open yet, so OPN is retransmitted
+	movx t1,cf%nsy		;No STS Yet
+	iorm t1,chasta(conn)
 	CONPTH [13]
 	MOVEI Q2,.COOPN		;OPN OPCODE
 	JRST CHASO2		;SEND LIKE A STS PACKET
@@ -3723,35 +3722,23 @@ CHIRFC:	MOVE T2,CHPKS(PKT)	;GET THE SOURCE OF THIS PACKET
 	HLRZ T1,CHQRFC		;LOOK DOWN RFC LIST FOR POSSIBLE ONES
 	JUMPE T1,CHIRF3
 CHIRF1:	CAMN T2,CHPKS(T1)	;FROM THE SAME SOURCE?
-	ifnsk.
-;;	 bug.(inf,chir11,chaos,soft,<Ignoring RFC from same source>,<<t2,src>>)
 	 JRST IGNPKT		;YES, JUST FORGET THIS NEW ONE
-	endif.
 	HRRZ T1,PKTLNK(T1)	;GET THE NEXT IN LIST
 	CAIE T1,-1		;JUST IN CASE, MAKE SURE NOT EMPTY MARKER
 	 JUMPN T1,CHIRF1
 	SKIPE T1,CHQRFP		;FORK CODE HAVE HANDLE ON A PACKET?
 	 CAME T2,CHPKS(T1)	;YES, DOES IT MATCH?
 	 CAIA			;NOPE, SEE IF DUPLICATE CONNECTION
-	ifnsk.
-;;	 bug.(inf,chir12,chaos,soft,<Ignoring duplicate RFC>)
 	 JRST IGNPKT		;ELSE FLUSH DUPLICATE RFC
-	endif.
 CHIRF3:	MOVSI T1,-MAXCON
 CHIRF4:	SKIPL CONN,CHACON(T1)	;IS THERE A CONNECTION HERE?
 	 JRST CHIRF5		;NO
 	HRRZS CONN		;CLEAR UNIQUIZER
 	CAMN T2,CHAFRN(CONN)	;THE SAME?
-	ifnsk.
-;;	 bug.(inf,chir13,chaos,soft,<Ignoring duplicate RFC too>)
 	 JRST IGNPKT		;YES, FLUSH THIS DUPLICATE
-	endif.
 CHIRF5:	AOBJN T1,CHIRF4		;NO, KEEP LOOKING
 	CALL CPYPKZ		;MAKE AN ASCIZ COPY OF THE PACKET
-	ifnsk.
-;;	 bug.(inf,chir14,chaos,soft,<Cannot make asciz copy of RFC pkt>)
 	 JRST IGNPKT		;CANNOT MAKE COPY, PUNT
-	endif.
 	SETZM PKTTIM(PKT)	;NOTE THAT WE'VE NOT SEEN IT YET
 	MOVEI Q2,CHQRFC		;RFC RECEIVED LIST
 	CALL CHAQPF		;ADD TO LIST
@@ -3808,6 +3795,9 @@ CHISTS:	CALL CHFNDX		;FIND CONNECTION
 	 JRST CHALOS
 	CAIE Q2,.CSOPN		;MUST BE OPEN
 	 JRST CHALOS
+	movx t1,cf%nsy		;If we were waiting for this STS,
+	tdne t1,chasta(conn)
+	 andcam t1,chasta(conn)	; then note we got it
 CHIST1:	LDB T1,[POINT 16,CHPKDT(PKT),31] ;GET WINDOW SIZE FROM PACKET
 	CAMLE T1,MXTWIN		;RANGE CHECK
 	 MOVE T1,MXTWIN
@@ -4344,7 +4334,19 @@ DEBUG,<	PUSH P,Q2		;COUNT OF PACKETS RE-XMITTED
 >;DEBUG
 	CALL NOSKDP		;PREVENT TAMPERING WITH QUEUE
 	CAIN T1,.CSRFS		;3026 IF RFC SENT STATE,
-	 SKIPA T1,[177777]	;3026 RETRANSMIT EVERYBODY (RFC IS PKT 0)
+	ifnsk.
+	 move T1,[177777]	;3026 RETRANSMIT EVERYBODY (RFC IS PKT 0)
+	 jrst chart1
+	else.			;Check for corresponding case: the first OPN
+	 cain t1,.csopn
+	 ifnsk.
+	  movx t1,cf%nsy	;If we were waiting for the first STS,
+	  tdne t1,chasta(conn)
+	 annsk.
+	  move T1,[177777]	;3026 RETRANSMIT EVERYBODY (opn IS PKT 0)
+	  jrst chart1
+	 endif.
+	endif.
 	HRRZ T1,CHAACK(CONN)	;1003 LAST PACKET NUMBER WE RE-XMITTED
 CHART1:	HLRZ PKT,CHAOBF(CONN)
 	CAIA
@@ -5097,7 +5099,6 @@ comment |
 	LOAD T1,CPKOP,(PKT)	;GET THE OPCODE
 	LOAD T2,CPKDA,(PKT)	; destination host
 	bug.(inf,chx42,chaos,soft,<CHXINT for PKT and IPKT>,<<PKT,PKT>,<IPKT,IPKT>,<t1,opcode>,<t2,dest>>)
-;;	bug.(inf,chx42,chaos,soft,<CHXINT for PKT and IPKT>,<<PKT,PKT>,<IPKT,IPKT>>)
 |
 	SETZRO PFLGS,(IPKT)	; clear all flags
 	;setzm pktflg(ipkt)	; clear all flags
