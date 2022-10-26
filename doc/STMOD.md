@@ -21,7 +21,7 @@ Set terminal modes.
 | 1B4 (`TM%MSM`) | Smart about more |
 | 1B5 (`TM%VBL`) | Use visible bell for `^G` |
 | 1B6 (`TM%GRF`) | Perform Graphics Functions |
-| 1B7 (`TM%RSU`) | ? |
+| 1B7 (`TM%RSU`) | Reverses delete and underscore chars on input |
 | 1B17 (`TM%ITP`) | Intelligent terminal protocol in use |
 
 ## STMOD% error mnemonics:
