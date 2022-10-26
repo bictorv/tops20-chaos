@@ -12,6 +12,7 @@ Read terminal modes.
 ## Terminal modes
 
 | Bit | Description |
+| --- | --- |
 | 1B0 (`TM%DPY`) | Process `^P` codes |
 | 1B1 (`TM%SCR`) | Scroll mode / Wrap mode |
 | 1B2 (`TM%MOR`) | More processing enabled |

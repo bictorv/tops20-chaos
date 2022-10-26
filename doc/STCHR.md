@@ -13,6 +13,7 @@ Set terminal characteristics.
 ## Terminal characteristics
 
 | Bit | Description |
+| --- | --- |
 | 1B0 (`TC%MOV`) | Absolute or relative cursor motion |
 | 1B1 (`TC%BS`) | Cursor back at least (backspace) |
 | 1B2 (`TC%HOM`) | Home to top left hand corner |
