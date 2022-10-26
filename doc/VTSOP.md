@@ -14,12 +14,14 @@ Do display dependent operations.
 
 ## Flags
 | Code | Description |
+| --- | --- |
 | 1B1 (`DP%AG1`) | First argument (in AC3) exists |
 | 1B2 (`DP%AG2`) | Second argument (in AC4) exists |
 
 ## Function codes
 
 | Code | Description | Argument(s) |
+| --- | --- | --- |
 | 0 (`.VTNOP`) | NOP (force update) |
 | 1 (`.VTFWD`) | Cursor forward | AC3: count |
 | 2 (`.VTBCK`) | Cursor back | AC3: count |
