@@ -77,7 +77,14 @@ Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html
 - If the *contact* contains arguments, similarly quote special characters with `^V`. You can/may/should use underscore (`_`) for space (they will become spaces again on the net).
 - Before closing the connection with `CLOSF%`, you may want to make sure your output has reached the other end. This can be done using `SOUTR` or the `.MOSND` operation for `MTOPR`, possibly followed by `.MOEOF` (to send an EOF) and `.MONOP` (to wait for it to get acked). This should arguably be default behaviour of a normal `CLOSF%` without `CZ%ABT` (or with `CO%WCL`?), but as it is, it is needed/useful. See e.g. `<CHAOS.SYSTEM>CHAFIN.MAC`.
 
-**New JSYS**: [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTDOM%`.)
+### New JSYSes
+
+- [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTDOM%`.)
+- [VTSOP%](doc/VTSOP.md) (JSYS 635), to do display dependent operations (**NYI**)
+- [RTMOD%](doc/RTMOD.md) (JSYS 636), to read terminal modes.
+- [STMOD%](doc/STMOD.md) (JSYS 637), to set terminal modes.
+- [RTCHR%](doc/RTCHR.md) (JSYS 640), to read terminal characteristics.
+- [STCHR%](doc/STCHR.md) (JSYS 641), to set terminal characteristics.
 
 Some supplemental documentation for JSYSes with extended functionality: 
 
