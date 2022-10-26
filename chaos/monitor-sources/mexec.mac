@@ -1152,6 +1152,12 @@ NOTJB0:	MOVE 1,JOBNO		;FIRST FEW JOBS ARE SPECIAL,
 	CALL CHKPTY		;IS IT A PTY?
 	 SKIPA			;NO. INIT TTY PARAMETERS
 	JRST SYSINP		;YES. DON'T INIT TTY PARAMETERS
+ifn chaos,<
+	MOVEI T1,.PRIIN
+	GTTYP			;Check if it is a SUPDUP terminal
+	CAIN T2,.TTSUP
+	 JRST SYSINP		;then skip setting things up here
+>
 	MOVEI 1,100
 	MOVEI 2,3B33		;SET TO HDX HERE, SO SETTING TO FDX
 	STPAR			;BELOW WILL FORCE OUT TELNET CONTROL
@@ -1159,9 +1165,21 @@ NOTJB0:	MOVE 1,JOBNO		;FIRST FEW JOBS ARE SPECIAL,
 	SFMOD
 	STPAR			;SET DEVICE PARAMETERS TOO
 	MOVE B,CTRLTT		;GET CONTROLLING TERMINAL
+ife chaos,<
 	CALL CHKTVT		;SEE IF A TCP VIRTUAL TERMINAL
 	 SKIPA T2,NORMTY	;[7.1230] No, load system default
 	MOVEI T2,.TTIDL		;[7.1230] Yes, load ideal terminal type
+>
+ifn chaos,<
+	CALL CHKTVT		;SEE IF A TCP VIRTUAL TERMINAL
+	ifnsk.
+	 call chkcvt		;No, check if it is a Chaos CVT
+	  skipa t2,normty	;No, then it's a default terminal
+	 movei t2,.ttidl	;Yes, Chaos, so use an ideal type
+	else.
+	 movei t2,.ttidl	;Yes, TCP, so use an ideal type
+	endif.
+>
 	MOVEI T1,.PRIOU
 	STTYP
 	MOVE 2,TTICB1
