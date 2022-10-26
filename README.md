@@ -31,7 +31,7 @@ The Chaosnet host name is initialized from the IP host name, using `GTHST%`, whi
 
 ### DNS resolver
 
-To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it). Use the `DSERVE` directive in the config.
+To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but note that it does not handle the INternet class - see [below](#resolv)). Use the `DSERVE` directive in the config.
 
 You may also want to include the domain `Chaosnet.NET.` in your `RSEARCH` directives, to get shorthand addresses to all ITS hosts on Chaosnet.
 
@@ -58,6 +58,8 @@ Both simple RFC-ANS protocols and stream protocols seem to work.
 `GTDOM%` handles the CHaosnet class (3). (There are not yet MACRO symbols for the classes.)
 
 `CHANM%` uses `GTDOM%`, so works. See [documentation](doc/CHANM.md).
+
+Surprisingly, the `TELNET` program of the Panda distribution already handled Chaosnet!
 
 ### Server programs
 
@@ -94,9 +96,14 @@ Some supplemental documentation for JSYSes with extended functionality:
 
 ## What should be done later
 
-- RESOLV should (be able to) use separate DNS servers for IN and CH classes, since CH can often be served by DNS servers which don't provide IN to just anyone, and IN servers in general have no clue about CH.
 - SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
 - MMAILR support would be nice!
+
+### RESOLV
+
+RESOLV should (be able to) use separate DNS servers for IN and CH classes, since CH can often be served by DNS servers which don't provide IN to just anyone  (e.g. `DNS.Chaosnet.NET`), and IN servers in general have no clue about CH.
+
+The workaround is to set up your own caching server to handle both IN and CH ([see here](https://chaosnet.net/chaos-dns)).
 
 ## Bugs
 
