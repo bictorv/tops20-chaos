@@ -67,7 +67,11 @@ If you install `CHARFC.EXE` in `SYSTEM:`, and start it in a SYSJOB, it will get 
 
 There are simple server programs for the `TIME`, `UPTIME`, `NAME`, `LIMERICK`, `FILE`, `LOAD`, and `TELNET` contacts, see [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](chaos/system/-read-this-.txt).
 
-The `FINGER` program has been fixed to finger Chaosnet hosts. You will need to recompile it (see `<CHAOS.FINGER>-READ-THIS-.TXT`) and install it (in `<SUBSYS>`).
+### Client programs
+
+The `FINGER` program has been fixed to finger Chaosnet hosts. You will need to compile it (see `<CHAOS.FINGER>-READ-THIS-.TXT`) and install it (in `<SUBSYS>`).
+
+Although `TELNET` already could make Chaosnet connections, I have changed the priority order between TCP and Chaos to prefer Chaos. Connect to `<CHAOS.TELNET>`, submit `TELNET.CTL`, and install `TELNET.EXE` in `<SUBSYS>`.
 
 ## Notes on programming
 

@@ -12,7 +12,7 @@
 
 ; Version components
 
-TELWHO==0			; who last edited TELNET (0=MRC)
+TELWHO==1			; who last edited TELNET (0=MRC, 1=BV)
 TELVER==7			; TELNET's release version (matches monitor's)
 TELMIN==0			; TELNET's minor version
 TELEDT==^D967			; TELNET's edit version
@@ -390,10 +390,13 @@ NETTBL==<.-NETTAB>-1
 
 ; $GTCAN format lookup list
 
-PROTAB:	[ASCIZ/TCP/],,INTIC1
+PROTAB:
+IFN FTXTND,<			;BV: Give Chaos priority
+	[ASCIZ/Chaos/],,CHSIC1
+>
+	[ASCIZ/TCP/],,INTIC1
 IFN FTXTND,<
 	[ASCIZ/Pup/],,PUPIC1
-	[ASCIZ/Chaos/],,CHSIC1
 	[ASCIZ/DECnet/],,DCNIC1
 >;IFN FTXTND
 	0			; terminate for $GTCAN
