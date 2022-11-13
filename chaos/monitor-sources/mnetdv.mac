@@ -5263,13 +5263,16 @@ XNENT (.ATNVT,G)		;.ATNVT::
          JRST TATNVT		; Yes, go to TCP code
 ifn CHAOS,<
 	xctu [hrrz jfn,1]	;Get JFN arg
-	callx (msec1,chkjfn)		;Lock and verify JFN
+	callx (msec1,chkjfn)	;Lock and verify JFN
 	 reterr(ATNX1)		;bogus JFN
 	 reterr(ATNX1)		;TTY
 	 reterr(ATNX1)		;byte ptr or NUL:
-	hrrz t1,fildev(jfn)	;Get device DTB
-	cain t1,chadtb		;Is it Chaos?
+	hrrz t2,fildev(jfn)	;Get device DTB
+	cain t2,chadtb		;Is it Chaos?
 	 xjrst [msec1,,catnvt]	;Go there
+	;; This was locked by CHKJFN,
+	;; but that will be called again by TVTJFN
+	unlock fillck(jfn)
 >
 	XJRST [MSEC1,,TVTJFN]	; we were given a JFN
 	SUBTTL NETRDY GETAB Table
