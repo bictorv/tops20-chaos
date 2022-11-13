@@ -398,8 +398,7 @@ chchk:	stkvar <ptr>
 	IDPB B,A
 	MOVEI B," "		;With ": "
 	IDPB B,A
-	CALL ADDLOC		;Now add the TTYLOC location
-	RETSKP
+	CALLRET ADDLOC		;Now add the TTYLOC location
 
 .DOPTY:	STKVAR <CTRLJB,CTRLUS,PTR>
 	MOVEM A,PTR
