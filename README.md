@@ -32,7 +32,7 @@ In `SYSTEM:INTERNET.ADDRESS`, add the following parameters for your IPNI#0
 IPNI#0,10.0.1.11,PACKET-SIZE:1500,LOGICAL-HOST-MASK:255.255.255.0,CHAOS-ADDRESS:3412,CHAOS-IP-GATEWAY:10.0.1.1
 ```
 
-Note that since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), which you might want to keep the contents short, which you can do in two ways:
+Note that since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), you might want to keep the contents short, which you can do in two ways:
   - If you only define one network, it is taken as default, so you can skip the `DEFAULT` keyword
   - If you have a default network, it is also (by default) the preferred one, so you can skip that keyword too
   - Since the file is parsed with `TBLUK%`, you can used short-but-nonambiguous keywords.
@@ -94,13 +94,13 @@ Although `TELNET` already could make Chaosnet connections, I have changed the pr
 ### EXEC modifications
 
 Support for the following has been added:
-  - The Chaosnet-access privilege can be given and checked (`build` and `info dir` commands) (see [RPCAP%/EPCAP%](doc/EPCAP.md)).
-  - `info system` shows whether Chaosnet access control is enabled (see [SMON%/TMON%](doc/SMON.md)).
-  - `^Eset `[no] `chaosnet-access-control` to enable/disable that.
-  - `info chaosnet` shows some info about the Chaosnet configuration.
-  - `systat` and `info job` commands show the remote Chaosnet host suffixed with "(Chaos)".
+  - The Chaosnet-access privilege can be given and checked (`BUILD` and `INFORMATION (ABOUT) DIRECTORY` commands) (see [RPCAP%/EPCAP%](doc/EPCAP.md)).
+  - `INFORMATION (ABOUT) SYSTEM-STATUS` shows whether Chaosnet access control is enabled (see [SMON%/TMON%](doc/SMON.md)).
+  - `^ESET `[no] `CHAOSNET-ACCESS-CONTROL` to enable/disable that.
+  - `INFORMATION (ABOUT) CHAOSNET` shows some info about the Chaosnet configuration (whether it's enabled, whether access control is enabled, what host address and name you have)
+  - `SYSTAT` and `INFORMATION (ABOUT) JOB-STATUS` commands show the remote Chaosnet host suffixed with "(Chaos)".
 
-Also, the `finger` command is allowed when not-logged-in.
+Also, the `FINGER` command is allowed when not-logged-in, and take a `/CHAOSNET` switch (to show only Chaosnet connections).
 
 ## Notes on programming
 
