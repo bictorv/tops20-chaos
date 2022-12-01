@@ -25,15 +25,31 @@ In `SYSTEM:INTERNET.ADDRESS`, add the following parameters for your IPNI#0
 - `CHAOS-IP-GATEWAY:`*a.b.c.d* where *a.b.c.d* is the IP address of a [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) which is configured to accept Chaos-over-IP from the IP of your TOPS-20 system (see [below](#chaosnet-bridge)).
 - `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`.
 
-(Note that you may want to use short-but-nonambiguous keywords, since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), which you might perhaps occasionally want to use.)
+**Example:** the IP address of the TOPS-20 system is 10.0.1.11/24, the Chaosnet bridge has IP 10.0.1.1, and the TOPS-20 Chaosnet address is 3412 (octal).
+```
+IPNI#0,10.0.1.11,PACKET-SIZE:1500,LOGICAL-HOST-MASK:255.255.255.0,CHAOS-ADDRESS:3412,CHAOS-IP-GATEWAY:10.0.1.1
+```
 
-The Chaosnet host name is initialized from the IP host name, using `GTHST%`, which should match, of course. 
+Note that since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), which you might want to keep the contents short, which you can do in two ways:
+  - If you only define one network, it is taken as default, so you can skip the `DEFAULT` keyword
+  - If you have a default network, it is also (by default) the preferred one, so you can skip that keyword too
+  - Since the file is parsed with `TBLUK%`, you can used short-but-nonambiguous keywords.
+
+The Chaosnet host name is initialized from the IP host name, using `GTHST%`, so they need to match, of course. 
 
 ### DNS resolver
 
-To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but note that it does not handle the INternet class - see [below](#resolv)). Use the `DSERVE` directive in the config.
+To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but note that it does not handle the INternet class - **see [below](#resolv)**). Use the `DSERVE` directive in the config. 
 
 You may also want to include the domain `Chaosnet.NET.` in your `RSEARCH` directives, to get shorthand addresses to all ITS hosts on Chaosnet.
+
+**Example:**
+```
+DSERVE 158.174.114.186    ;This is the current address of DNS.Chaosnet.NET
+RSEARCH .                 ;Try fully qualified first
+RSEARCH my.local.dom.ain. ; then my local domain
+RSEARCH Chaosnet.NET.     ; then Chaosnet.NET
+```
 
 (Note that HOSTS.TXT is not used for Chaosnet host names, except for initializing the local host name using `GTHST%`, see above.)
 
@@ -114,7 +130,7 @@ Some supplemental documentation for JSYSes with extended functionality:
 
 RESOLV should (be able to) use separate DNS servers for IN and CH classes, since CH can often be served by DNS servers which don't provide IN to just anyone  (e.g. `DNS.Chaosnet.NET`), and IN servers in general have no clue about CH.
 
-The workaround is to set up your own caching server to handle both IN and CH ([see here](https://chaosnet.net/chaos-dns)).
+The **workaround** is to set up your own caching server to handle both IN and CH ([see here](https://chaosnet.net/chaos-dns)).
 
 ## Bugs
 
