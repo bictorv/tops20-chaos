@@ -12,6 +12,8 @@ See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
 
 Begin by installing a Panda system and get Internet working on it.
 
+Then restore the tape file `chaos.tpr` using `DUMPER`.
+
 To generate the monitor, connect to `<CHAOS.MONITOR-SOURCES>` and submit `MONGEN.CTL`.
 
 To generate the exec, connect to `<CHAOS.EXEC-SOURCES>` and submit `EXCGEN.CTL`.
