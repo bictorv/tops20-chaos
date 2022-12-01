@@ -10,7 +10,7 @@ See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
 
 ## Installation
 
-Begin by installing a Panda system and get Internet working on it.
+Begin by installing a Panda system and get Internet working on it. For this, you probably need to be running on a KL (emulator). The Chaosnet code has only been tried on a KL.
 
 Then restore the tape file `chaos.tpr` using `DUMPER`.
 
@@ -112,6 +112,7 @@ Some supplemental documentation for JSYSes with extended functionality:
 
   - [RPCAP%/EPCAP%](doc/EPCAP.md),
   - [SMON%/TMON%](doc/SMON.md), 
+  - [SYSGT%/GETAB%](doc/SYSGT.md),
   - [NTINF%](doc/NTINF.md),
   - [OPENF%](doc/OPENF.md),
   - [MTOPR%](doc/MTOPR.md)
