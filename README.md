@@ -91,6 +91,17 @@ The `FINGER` program has been fixed to finger Chaosnet hosts. You will need to c
 
 Although `TELNET` already could make Chaosnet connections, I have changed the priority order between TCP and Chaos to prefer Chaos. Connect to `<CHAOS.TELNET>`, submit `TELNET.CTL`, and install `TELNET.EXE` in `<SUBSYS>`.
 
+### EXEC modifications
+
+Support for the following has been added:
+  - The Chaosnet-access privilege can be given and checked (`build` and `info dir` commands) (see [RPCAP%/EPCAP%](doc/EPCAP.md)).
+  - `info system` shows whether Chaosnet access control is enabled (see [SMON%/TMON%](doc/SMON.md)).
+  - `^Eset `[no] `chaosnet-access-control` to enable/disable that.
+  - `info chaosnet` shows some info about the Chaosnet configuration.
+  - `systat` and `info job` commands show the remote Chaosnet host suffixed with "(Chaos)".
+
+Also, the `finger` command is allowed when not-logged-in.
+
 ## Notes on programming
 
 Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) documentation.
