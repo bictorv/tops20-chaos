@@ -14,6 +14,10 @@ Install UPTIME.EXE as SYSTEM:CHAOS.UPTIME
 Install LOAD.EXE as SYSTEM:CHAOS.LOAD
 Install LIMRCK.EXE as SYSTEM:CHAOS.LIMERICK (note longer name)
 
-Start FILE.EXE at PURIFY to install it as SYSTEM:CHAOS.FILE
-The START command doesn't understand symbolic addresses, but
-you can first EXAMINE PURIFY to find the address.
+Start FILE.EXE at PURIFY to install it as SYSTEM:CHAOS.FILE.
+(The START command doesn't understand symbolic addresses, but
+you can first EXAMINE PURIFY to find the address.)
+
+If the user ANONYMOUS exists, FILE reads SYSTEM:ANONYMOUS.USERFILE to
+find the password of that account. That file should of course be
+protected (e.g. 770000).
