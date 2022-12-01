@@ -7336,6 +7336,47 @@ NUMVAL==:5
 ;DEFINE BITS USED WHEN RELOADING AN -11
 
 RM%ROM==:1B0			;IF SET, ACTIVATE ROM
+
+; VTS function codes
+
+	.VTCNT==:1		; First arg is repeat count unless otherwise
+				;  defined
+
+.VTNOP==:0			; NOP - force cursor update
+.VTFWD==:1			; Cursor forward
+.VTBCK==:2			; Cursor back
+.VTUP==:3			; Cursor up
+.VTDWN==:4			; Cursor down
+.VTHRZ==:5			; Set horizontal pos
+	.VTHRA==:1			; value
+.VTVRT==:6			; Set vertical pos
+	.VTVRA==:1			; value
+.VTMOV==:7			; Move cursor (x and y)
+	.VTPOS==:1			; Y coord,,X coord
+.VTHOM==:10			; Home up
+.VTHMD==:11			; Home down
+.VTADV==:12			; Advance to next line
+.VTSAV==:13			; Save pos
+.VTRES==:14			; Restore pos
+.VTCLR==:15			; Clear window
+.VTCEW==:16			; Clear to end-of-window
+.VTCEL==:17			; Clear to end-of-line
+.VTERA==:20			; Erase character ???
+.VTBEC==:21			; Backspace and erase
+.VTLID==:22			; Line insert/delete
+;	.VTCNT==:1			; Repeat count
+	.VTYLM==:2			; First line,,Last line
+.VTCID==:23			; Character insert/delete
+;	.VTCNT==:1			; Repeat count
+	.VTXLM==:2			; First char,,Last char
+.VTESC==:24			; Output VTS escape
+
+; DPYOP JSYS (this should really be in the proper alphabetical place)
+
+; Flags in AC2
+
+DP%AG1==1B1			; First arg (in 3) exists
+DP%AG2==1B2			; Second arg (in 4) exists
 	SUBTTL General Fields (TOPS20AN)
 
 ;***********************************************
@@ -8710,6 +8751,12 @@ IFN CHAOS,<
 .ERR (3046,CHAOX3,<Byte count too large>)
 .ERR (3047,CHAOX4,<No LOS received for connection>)
 .ERR (3050,CHAOX5,<Not allowed to use Chaosnet>)
+>
+; VTSOP errors
+.ERR (3060,VTSX01,<Invalid VTS function>)
+.ERR (3061,VTSX02,<Terminal cannot perform VTS function>)
+.ERR (3062,VTSX03,<Missing required argument to VTS function>)
+IFN CHAOS,<
 .ERR (3100,CHNX01,<Invalid or Unknown Chaosnet Host Name>)
 .ERR (3101,CHNX02,<Invalid or Unknown Chaosnet Host Number>)
 .ERR (3102,CHNX03,<Local Chaosnet host information not set>)
