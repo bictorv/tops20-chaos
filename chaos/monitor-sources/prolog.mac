@@ -4075,7 +4075,9 @@ STKCD4==:4			;TYPE 4 FOR SWAP FREE STRINGS
 				; as right-justified halfword values
 				; those greater than STKHWD are
 				; handled as fullword values
-
+ifn CHAOS,<
+STKCD5==:5			; 100: TYPE 5 FOR CHAOS NET CONNS DURING ICP
+>
 
 ;SYSERR DEFINITIONS
 

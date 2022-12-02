@@ -246,19 +246,16 @@ DEFINE NDG (SYM,VAL)<
    IFNDEF SYM,<
 	SYM==:VAL>>
 NDG ARPAF,0			; Arpanet packetizing
-;; [BV]
 NDG CHINET,1			; Internet packetizing
-;; [BV]
 NDG MNET,1			; Multinet system
 NDG BBNFLG,0			; BBN monitor mods
 NDG F3FLG,0			; Foonly processor
-;; [BV]
 NDG KLFLG,1			; KL processor
 NDG SMFLG,0			; 2020 processor
-;; [BV]
 NDG T20FLG,1			; TOPS-20 monitor
 NDG TNXFLG,0			; TENEX monitor
 NDG NETDTE,-1			;DEFAULT IS NO DTE USAGE
+NDG CHDR11,0			; and no Foonly DR11 support
 NDG FRNDLY,0			; friendly host support code
 
 ;;;DEBUGGING/METERING SETTINGS
@@ -266,11 +263,6 @@ NDG FRNDLY,0			; friendly host support code
 NDG CHSDBG,0			;DEBUGGING OFF BY DEFAULT
 NDG CHSMTR,0			;METERING OFF BY DEFAULT
 ;1000 End Addition
-
-	arpaf==0
-	;;[BV] chinet==0
-	;;[BV]
-	chdr11==0
 
 IFN ARPAF,<SEARCH IMPPAR>
 
@@ -297,24 +289,17 @@ IFG CHSDBG,<PRINTX ?CHAOSNET DEBUGGING CODE IS BROKEN!!!>
 
 IFN T20FLG,<
 	TTITLE CHAOS
-;;[BV]
 	SEARCH CHADFS
-;;[BV] IFN KLFLG,<SEARCH PROKL>	;GET DTE DEFINITIONS
 IFN SMFLG,<SEARCH PROKS>	;GET CHAOS UNIBUS ADAPTER DEFINITIONS
 
 IFN CHINET,<
-;;[BV]	SEARCH INPAR		;GET INTERNET DEFINITIONS
-;;[BV]
 	SEARCH ANAUNV
 
 IF1,<IPKT==PKT>			;GET RID OF DUPLICATE DEFINITION
 
 DEFAC(P4,PKT)
 
-;;[BV]
-ifndef .chafm,<.chafm==20>
-ifndef sc%cha,<SC%CHA==:1B34>			;206 LOCAL MIT ;CHAOS NET PRIVILEGES
-ifndef stkcd5,<STKCD5==:5>			; 100: TYPE 5 FOR CHAOS NET CONNS DURING ICP
+ifndef .chafm,<.chafm==20>	;Chaosnet IP protocol number
 
 	extn <chipgw,chaddn,chiqhd,chiipb,choppb>
 >;IFN CHINET
@@ -355,7 +340,6 @@ DEFINE NODEB <IFE CHSDBG>
 	EXTN <CTMSTM,CHNGTM,CHPIOF,CHPIDF,CHATMA,CHAT1A,CHNPO1>
 	EXTN <CHKCVT,ASNCVT,DETCVT,CHANEG,CHATCS,CVTUPI,CHANPD>
 	EXTN <CVTPTR,CHNNRS>
-;bv	EXTN <HSTADR,CHOSTP,CHANET> ;XX3026 TABLE, HAVE-TABLE, # PAGES, NET #
 ;XX3026	EXTN <CHANAO>		;OFFSET IN HOST TABLE OF CHAOS ADDRESS TABLE
 	EXTN <BUGCOU,TIMCOU>	    ;XX3027 COUNT OF CHAXOD BUGCHKS, TIME COUNT
 	EXTN <CHQLCL,CHQRFP>
@@ -518,10 +502,6 @@ eDEFSTR(xPIPL,PKTELI+.IPKVR,31,16)	;PACKET.IP.PACKET-LENGTH
 ;DEFSTR(PIFO,PKTELI+.IPKSG,31,13)	;PACKET.IP.FRAGMENT-OFFSET
 eDEFSTR(xPITTL,PKTELI+.IPKPR,7,8)		;PACKET.IP.TIME-TO-LIVE
 eDEFSTR(xPIPRO,PKTELI+.IPKPR,15,8)	;PACKET.IP.PROTOCOL
-  .ICMFM==1				;Internet Control Message protocol
-  .SCRFM==2				;Secure TCP format
-  .GGPFM==3				;Gateway-gateway protocol
-  .TCPFM==6				;TCP format
 ;DEFSTR(PICKS,PKTELI+.IPKPR,31,16)	;PACKET.IP.HEADER-CHECKSUM
 eDEFSTR(xPISH,PKTELI+.IPKSH,31,32)	;PACKET.IP.SOURCE-HOST
 eDEFSTR(xPIDH,PKTELI+.IPKDH,31,32)	;PACKET.IP.DESTINATION-HOST
@@ -582,8 +562,6 @@ IFE TNXFLG,<
 IFN TNXFLG,<
 	SETOM CHAPRO		;NO WAY TO CHANGE IT, SO DEFAULT TO ON FOR TENEX
 >
-;bv	SETZM CHOSTP		;NO HOST TABLE BUILT YET
-;bv	SETZM MYHNAM		;I DON'T HAVE A NAME YET, EITHER
 IFG NETDTE,<
 	SETOM MYCHAD		; WE DON'T KNOW OUR HARDWARE ADDRESS YET
 >
@@ -2057,15 +2035,7 @@ DEBUG,<	MOVEI Q2,CHQLCL		;CHECK THIS QUEUE HEADER
 	SKIPN T1		;WAS IT THE LAST?
 	 SETZM CHQLCL		;YES, Q IS NOW EMPTY
 	PUSH P,PKT		;SAVE THIS PACKET OVER CHIPKT CALL
-ifn 0,<	;; Old code
-	XMOVEI T1,		;REMEMBER OUR SECTION
-	JUMPE T1,[CALL CHIPKT	;ALREADY SECTION 0, DON'T DO ANY
-		  JRST CHSLC2]	; SWITCHING
-	SE0ENT			;CHIPKT WANTS TO RUN IN SECTION 0
->
 	CALL CHIPKT		;HERE'S A PACKET FROM MYSELF
-ifn 0,<	SE1ENT			;BACK TO 1 IF WE WERE ALREADY THERE
->
 CHSLC2:	POP P,PKT		;GET BACK ORIGINAL PACKET
 	RCALL RELPKM,11		;GET RID OF IT IF IT'S NOT ON OTHER LISTS
 	CALL OKSKDP		;UNLOCK THINGS
@@ -2131,24 +2101,17 @@ IFN BBNFLG,<
 	SETZM CHATM1		; TIMEOUT CYCLE
 	SETZM CHATM2		; RFC CHECK CYCLE
 	SETZM CHNGTM		; NEGOTIATION TIMEOUTS FOR NVT'S
-ifn 0,<	;; Old code
+ife chinet,<
+	;; Old code, which might do some DTE stuff in addition to HOSTS2
 	CALL CHSINI		;BUILD OUR HOST TABLE FROM HOSTS2 NOW
 >
-ife 0,<
+ifn chinet,<
+	;; Not really CHINET-specific
 	movx t1,.gthns
 	hrroi t2,myhnam
 	seto t3,
 	gthst%
 	 erjmp .+1
-repeat 0,<
-	;; Default is in STG now
-	skipe chaddn		;Chaos address domain
-	ifskp.
-	 ;; Default value
-	 move t4,[point 7,[asciz "CH-ADDR.NET"]]
-	 callx (xcdsec,padchd)		;Parse it properly
-	endif.
->
 >
 IFN CHINET,<
 	MOVEI T1,^D5000		; Sleep for a little
@@ -2182,7 +2145,6 @@ IFN CHINET,<
 	ifjer.
 	 BUG.(HLT,CHIFR2,CHAOS,SOFT,<Can not create Chaosnet input fork>)
 	endif.
-	;movem t1,chifid		;save fork ID
 	xmovei t2,chinfk
 	msfrk%
 >
@@ -2203,7 +2165,7 @@ CHIFRF:	MOVE T1,TODCLK		;UPDATE WHEN WE LAST RAN OUR BASIC CYCLE
 		MOVEM T2,CHAONC	;TELL WHAT HAPPENED
 		JRST .+1 ]
 	MOVEM T1,CHAONL		;REMEMBER WHAT WE JUST SAW FOR NEXT TIME THROUGH
-ifn 1,<
+ifn 1,<	;; [BV] Doing this here seems to work OK, but see comments at GETIPK
 	skipe chpkti		;Need a pkt?
 	ifskp.
 	 call getipk		;Try to get one
@@ -2326,9 +2288,7 @@ CHIF21:
 	SKIPN T2		;IS THERE ANYTHING THERE?
 	 JRST CHIF22		;NO
 	CALL CHKCVT		;YES, IS THIS A CVT?
-	ifnsk.
 	 BUG.(inf,CHANCV,chaos,soft,<Bad line type - not a CVT>,<<CONN,CONREF>,<T1,CHASTA>,<t2,index>>) ;NO, COMPLAIN FOR KICKS
-	endif.
 CHIF22:
 
 ;CHECK STATUS REQUEST
@@ -2645,6 +2605,8 @@ IFGE NETDTE,<
 	RET			;THAT'S ALL FOR NOW
 
 	SUBTTL	HOST TABLE SUPPORT
+;; [BV] This is outdated and should be cleaned up.
+;; HOSTS2 is not used, but parts of the code below is used.
 
 ;GET IN HOSTS2.BIN IMAGE FOR OUR HOST TABLE.  ALSO SETS UP MYHNAM TO
 ;BE MY OFFICIAL NAME (WAITS FOR OUR HARDWARE ADDRESS TO APPEAR FROM
@@ -2707,9 +2669,12 @@ NMRNAM==0	; rh	address in file of host name
 ;	3.9-3.1	0
 ;	2.9-1.1	address in file of ASCIZ string of phone number
 
-;;[BV]
-ifndef myname,<define myname <asciz /BV20/>>
+ifn 0,<
+;;[BV] this is no longer used. Possibly the code which does use it
+;; (as a default host name) should do something cleverer.
+ifndef myname,<define myname <asciz /Amnesia/>>
 NOMNAM:	MYNAME			;NOMINAL HOST NAME AT BUILD TIME
+>
 
 IFE NETDTE,<
 	RESCD
@@ -3628,27 +3593,16 @@ IFN SMFLG,<	CALL RELPKT  >	;ON KS, FIRST GET RID OF THIS PACKET
 	load t3,cpkop,(pkt)	;get opcode
 	CAME T2,MYCHAD		;MATCHES MINE?
 	ifnsk.
-	 load t4,cpksa,(pkt)
-ife 0,<	;; handle broadcast
 	 skipe t2
 	 ifnsk.
 	  ;; not dest zero
-;;	  BUG.(INF,CHIPKN,CHAOS,SOFT,<Chaosnet pkt not for me>,<<T2,ADDR>,<t4,SOURCE>,<t3,opcode>>)
 	  call chapfw		;Not for me, forward it
 	  ret
 	 endif.
 	 ;; zero for address, check if it is a BRD
 	 load t3,cpkop,(pkt)	;get opcode
 	 caie t3,.cobrd
-	 ifnsk.
-	  caie t3,.corut	;ignore RUT for now
-;;	   bug.(inf,chipnb,chaos,soft,<Chaos 0 dest no BRD or RUT>,<<T3,opcode>>)
 	  jrst ignpkt		;No, flush it
-	 endif.
->
-ifn 0,<	;; old code
-	 JRST CHAPFW		;NO, FORWARD PACKET
->
 	endif.
 	LOAD T2,CPKSA,(PKT)	;GET SOURCE ADDRESS
 	CAME T2,MYCHAD		;FROM MYSELF (LOCALLY ROUTED)?
@@ -4302,12 +4256,7 @@ CHASO2:	HRRZ T1,CHASTA(CONN)	;MAKE SURE STILL WORTH DOING
 ;;	 bug.(inf,chso21,chaos,soft,<Failed AGSPK1 when sending STS/OPN>,<<T1,len>>)
 	 RET			;FAILED, LET NORMAL MECHANISMS DO IT LATER
 	endif.
-ifn 0,<
-	MOVX T1,CF%STS		;NOTE WE'VE HANDLED THIS NEED FOR STATUS
-	ANDCAM T1,CHASTA(CONN)
-	JRST CHSTO2		;GO SEND IT OFF
->
-ife 0,<	;; Do this in the right order, and check if sending succeeded!
+	;; Do this in the right order, and check if sending succeeded!
 	call CHSTO2		;GO SEND IT OFF
 	skipn t1		;Did we send it?
 	ifnsk.
@@ -4317,7 +4266,6 @@ ife 0,<	;; Do this in the right order, and check if sending succeeded!
 	MOVX T1,CF%STS		;NOTE WE'VE HANDLED THIS NEED FOR STATUS
 	ANDCAM T1,CHASTA(CONN)
 	RET
->
 
 	;RESCD
 
@@ -4809,15 +4757,8 @@ IFN CHINET,<
 ;;; and CHXINT is always called while NOSKED.
 ;;; Therefore we try to keep an internet  buffer on tap
 getipk:	SKIPN INSKED		; We can't work in schedular
-;	ifskp.
-;	  bug.(inf,okski1,chaos,soft,<OKSKDP can not allocate - INSKED>)
-;	 RET
-;	endif.
 	 SKIPE NSKED		; or if NOSKED
-;	ifnsk.
-;	  bug.(inf,okskin,chaos,soft,<OKSKDP can not allocate - NSKED>)
 	  RET			; so give up
-;	endif.
 
 	PIOFF			; Steal machine for a moment
 	SKIPE CHPKTI		; Have we a buffer already?
@@ -4825,54 +4766,14 @@ getipk:	SKIPN INSKED		; We can't work in schedular
 		RET]
 	SETOM CHPKTI		; make others leave it alone
 	PION			; and give back the machine
-ife 1,< ;; old code
-	STKVAR <FROMS1>		; Flag of the section we're in
-	XMOVEI T1,0		; Get section number
-	MOVEM T1,FROMS1		; Save
-	SKIPN T1		; If in section 0
-	 SE1CAL			; enter section 1
->
-ife 0,< EA.ENT>
+	EA.ENT
 	MOVEI T1,PKTELI+<MINIHS+3>/4+CHPKDT+<^D488>/4+2
 				; allocate space for maximum possible packet
 	saveac <t2,t3>		;Smashed by getblk
-;;	CALL GETBLK		; get a block of Internet free storage
-	call getasg
-;;	bug.(inf,chgblk,chaos,soft,<Got block of IP free stg>,<<T1,addr>>)
+	CALLX (XCDSEC,GETBLK)	; get a block of Internet free storage
 	MOVEM T1,CHPKTI		; Save buffer if we got it
-ife 1,< ;; old code
-	SKIPN FROMS1		; If we came from section 0
-	 SE0ENT			; return to it
->
 >
 	RET
-
-;; Use ASGRES instead of GETBLK, so we can get data in section 0/1,
-;; which is necessary since SNDIN doesn't cope with other sections.
-;; t1/ size needed
-;; return t1: block ptr or 0 (just like getblk)
-getasg:
-ifn 1,<	callx (xcdsec,getblk)	;Call it in the other section
-;;	bug.(inf,chgblk,chaos,soft,<Got block of IP free stg>,<<T1,addr>>)
-;;	setsec t1,intsec	;It's already there
->
-ifn 0,<
-	saveac <t2>
-	hrli t1,.resp1
-	movei t2,.resnp
-	tlo t2,(rs%se0)
-	call asgres
-	 setz t1,
-	setsec t1,msec1
->
-	ret
-
-;; release assigned block
-;; t1/ address
-relasg: ret			;This is done by SNDGAT it seems
-ifn 1,<	call retblk>
-ifn 0,<	call relres>
-	ret
 
 	SUBTTL	ARPANET ROUTING SUPPORT
 repeat 0,<		;1002 remove arpa routing support
@@ -4958,7 +4859,8 @@ CHIIM1:	LOAD T1,CPKNB,(T2)	;GET BYTE COUNT
 	MOVEI T3,CHATPB		;THIS TEMP PACKET IS THE DESTINATION
 	MOVEI PKT,(T3)		; AND LEAVE HERE FOR CHIPKT
 	CALL XBLTA		;COPY IN THE PACKET FROM IMP BUFFER
-ifn 0,<	SE0ENT			;MAKE LIFE EASIER ON DTE CODE
+ifn 0,<	;; [BV] I don't remember why this was bad
+	SE0ENT			;MAKE LIFE EASIER ON DTE CODE
 >
 	CALL NOSKDP		;LOCK THINGS APPROPRIATELY FOR CHIPKT
 	CALL CHIPKT		;PROCESS INPUT OF IT
@@ -4977,7 +4879,6 @@ chinfk:	MOVX 1,USRCTX		;Set up context
 	disms
 
 chinf0:	move t1,chiqhd		;Get IQ handle
-;;	bug.(inf,chaqu1,chaos,soft,<Using IP queue for Chaos input>,<<T1,CHIQHD>>)
 	xmovei t2,chiipb
 	move t3,chpmxw		;Max words in a Chaos packet
 	addi t3,chpkdt+.ipkdh+2	;plus Chaos and IP header sizes and length word
@@ -4993,7 +4894,6 @@ chinf0:	move t1,chiqhd		;Get IQ handle
 	  jrst chinf0
 	endif.
 	hlrz t1,chiipb+.inqbh	;get received length
-;;	BUG.(INF,CHIPI1,CHAOS,SOFT,<Chaosnet RCVIN success>,<<T1,size>>)
 	;; should test length
 	movei ipkt,chiipb+1	;the PIDO etc macros offset with pkteli
 	subi ipkt,pkteli	;offset IMP header for pido et al
@@ -5066,21 +4966,7 @@ CHXNOR:
 >;IFL NETDTE
 
 ;OUTPUT PACKET TO INTERNET, CALLED WITH CHAOSNET PACKET IN PKT
-CHXINT:
-ifn 0,<	;; Old code
-	STKVAR <FROMS1>		; flag of the section we're called from
->
-repeat 0,<
-	XMOVEI T1,0		; Get section number
-	skipn t1
-	 BUG.(INF,CHXZRO,CHAOS,SOFT,<CHXINT called in section 0>)
->
-ifn 0,<	;; Old code
-	MOVEM T1,FROMS1		; save
-	SKIPN T1		; Don't enter if we're already there
-	 SE1CAL			; enter section 1
->
-ife 0,<	EA.ENT>			;New version
+CHXINT:	EA.ENT
 	PUSH P,IPKT		; Save Internet packet register
 	SKIPE INSKED		; Called from the schedular?
 	 JRST CHXINX		; Can't send packet if so
@@ -5095,13 +4981,7 @@ ife 0,<	EA.ENT>			;New version
 	endif.
 	SETZM CHPKTI		; clear pointer
 	pion
-comment |
-	LOAD T1,CPKOP,(PKT)	;GET THE OPCODE
-	LOAD T2,CPKDA,(PKT)	; destination host
-	bug.(inf,chx42,chaos,soft,<CHXINT for PKT and IPKT>,<<PKT,PKT>,<IPKT,IPKT>,<t1,opcode>,<t2,dest>>)
-|
 	SETZRO PFLGS,(IPKT)	; clear all flags
-	;setzm pktflg(ipkt)	; clear all flags
 	;; clear IP header fields (except .ipkdh which is always filled in)
 	SETZM pkteli+.IPKVR(IPKT)	
 	SETZM pkteli+.IPKSG(IPKT)
@@ -5123,18 +5003,9 @@ comment |
 	SETZM .IPKPR(IPKT)	; ...
 	MOVEI T1,.CHAFM		; CHAOSNET protocol
 	STOR T1,xPIPRO,(IPKT)
-ife 1,< ;; old code
-	MOVE T1,DEFADR		; get default address
-	STOR T1,PISH,(IPKT)	; set as source host
-	LOAD T1,CPKDA,(PKT)	; destination host
-	IOR T1,[CHINTM]		; mask in internet
->
-ife 0,< ;; new code
 	move t1,inetid		;Default source for pkt
 	stor t1,xPISH,(ipkt)
 	move t1,chipgw		;get destination gateway
-;;	bug.(inf,cinig2,chaos,soft,<Chaos-to-IP gw unshifted>,<<t1,ipaddr>>)
->
 	STOR T1,xPIDH,(IPKT)	; and set internet destination
 	XMOVEI T3,PKTELI+<MINIHS+3>/4(IPKT)	; Point to Data area
 	MOVE T2,PKT		; transfer from here
@@ -5143,11 +5014,7 @@ ife 0,< ;; new code
 	addi t1,3
 	LSH T1,-2		; convert to words
 	CALL XBLTA		; ....
-ife 1,< ;; old code
-	CALL SNDGAT		; send it off
->
-ifn 1,< ;; new code
-	;; swap on output - should not be needed but...
+	;; swap on output
 	load t4,cpknb,(pkt)	;nbytes in data
 	addi t4,chpkdt*4	;add header
 
@@ -5160,45 +5027,15 @@ ifn 1,< ;; new code
 	CAIl T2,.CODAT+100	;BINARY DATA?
 	 JRST CHAxi2		
 	movei t4,chpkdt*4	;NOPE, only swap the header
-chaxi2:
-	XMOVEI T2,PKTELI+<MINIHS+3>/4(IPKT)	; Point to Data area
+chaxi2:	XMOVEI T2,PKTELI+<MINIHS+3>/4(IPKT)	; Point to Data area
 	call swapch		;Swap it
-ifn 0,<	;; SNDIN can't be used with ASNIQ handle of another job
-	load t1,pipl,(ipkt)	;get packet length again (incl IP header)
-;;	bug.(inf,chsnin,chaos,soft,<Chaos sending on IP>,<<t1,nbytes>>)
-	aos t1			;round up
-	lsh t1,-2		;make words
-	aos t1			;add one for the length word
-	movem t1,pkteli-1(ipkt)	;save in SNDIN header
-	move t1,chiqhd		;get handle
-;;	bug.(inf,chaqus,chaos,soft,<Using IP queue for Chaos output>,<<T1,CHIQHD>>)
-	movei t2,pkteli-1(ipkt)	;header addr
-	setz t3,
-	sndin%
-	ifjer.
-	 BUG.(HLT,CHIPUT,CHAOS,SOFT,<Chaosnet SNDIN failed>)
-	endif.
->
-ife 0,<	;; Must use SNDGAT anyway
 	setzro psrou,(ipkt)	;No source routing
 	callx (xcdsec,sndgat)	;Send it off
->
 	aos chanpo		;One more pkt output
->
-CHXINX:
-ifn 0,<	;; Don't do this: either we got here because no ipkt or nosched, or sndgat already did this?
-	move t1,ipkt
-	bug.(inf,chxxit,chaos,soft,<CHXINX with ipkt>,<<t1,ipkt>>)
-;;	call retblk		;return the block
-	call relasg
->
-	POP P,IPKT		; restore register
+
+CHXINX:	POP P,IPKT		; restore register
 	HRROS PKTLNK(PKT)	; Packet is no longer XMIT active
 	RCALL RELPKM,22		; Packet is not in use, so release it
-ifn 0,<	;; Old code
-	SKIPN FROMS1		; don't return to sc 0 if we came from 1
-	 SE0ENT			; return to section 0
->
 	RETSKP			; and return
 >;IFN CHINET
 
