@@ -25,7 +25,7 @@ You can compile the various programs in `<CHAOS.SYSTEM>` and install them as ind
 In `SYSTEM:INTERNET.ADDRESS`, add the following parameters for your IPNI#0
 - `CHAOS-ADDRESS:`*nnnn* where *nnnn* is your octal Chaosnet  address
 - `CHAOS-IP-GATEWAY:`*a.b.c.d* where *a.b.c.d* is the IP address of a [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) which is configured to accept Chaos-over-IP from the IP of your TOPS-20 system (see [below](#chaosnet-bridge)).
-- `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`.
+- `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`, max len 50. (The default *dname* is coded in `STG.MAC`, at `CHADDN`.)
 
 **Example:** the IP address of the TOPS-20 system is 10.0.1.11/24, the Chaosnet bridge has IP 10.0.1.1, and the TOPS-20 Chaosnet address is 3412 (octal).
 ```
@@ -98,9 +98,9 @@ Support for the following has been added:
   - `INFORMATION (ABOUT) SYSTEM-STATUS` shows whether Chaosnet access control is enabled (see [SMON%/TMON%](doc/SMON.md)).
   - `^ESET `[no] `CHAOSNET-ACCESS-CONTROL` to enable/disable that.
   - `INFORMATION (ABOUT) CHAOSNET` shows some info about the Chaosnet configuration (whether it's enabled, whether access control is enabled, what host address and name you have)
-  - `SYSTAT` and `INFORMATION (ABOUT) JOB-STATUS` commands show the remote Chaosnet host suffixed with "(Chaos)".
+  - `SYSTAT`, `LOGIN`, and `INFORMATION (ABOUT) JOB-STATUS` commands show the remote Chaosnet host suffixed with "(Chaos)".
 
-Also, the `FINGER` command is allowed when not-logged-in, and take a `/CHAOSNET` switch (to show only Chaosnet connections).
+Also, the `FINGER` command is allowed when not-logged-in, and takes a `/CHAOSNET` switch (to show only Chaosnet connections).
 
 ## Notes on programming
 
@@ -152,4 +152,8 @@ Of course! Please report them to me.
 
 Known things:
 - `BUGINF FLKINT` when creating outgoing connections.
+-- This seems not to cause problems, but indicates some bug of course.
 - `BUGCHK IPIBLP` when lots of input coming in a connection.
+-- This was related to a Chaosnet window handling bug in the [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) but could still appear as the result of a DoS attack.
+- Filename parsing for `CHA:` only checks if the name *begins* with a digit and then uses that as address, so parsing "3com" will just return 3. (See `HSTN$1` in `CHAOS.MAC`).
+- Using 50 as max host/domain name length here and there.
