@@ -33,15 +33,15 @@ IPNI#0,10.0.1.11,PACKET-SIZE:1500,LOGICAL-HOST-MASK:255.255.255.0,CHAOS-ADDRESS:
 ```
 
 Note that since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), you might want to keep the contents short, which you can do in two ways:
-  - If you only define one network, it is taken as default, so you can skip the `DEFAULT` keyword
-  - If you have a default network, it is also (by default) the preferred one, so you can skip that keyword too
-  - Since the file is parsed with `TBLUK%`, you can used short-but-nonambiguous keywords.
+  - If you only define one network, it is taken as default, so you can skip the `DEFAULT` keyword.
+  - If you have a default network, it is also (by default) the `PREFERRED` one, so you can skip that keyword too.
+  - Since the file is parsed with `TBLUK%`, you can used short-but-nonambiguous keywords (e.g. `LOG` would be sufficient for the mask).
 
 The Chaosnet host name is initialized from the IP host name, using `GTHST%`, so they need to match, of course. 
 
 ### DNS resolver
 
-To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but note that it does not handle the INternet class - **see [below](#resolv)**). Use the `DSERVE` directive in the config. 
+To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but *note that it does not handle the INternet class* - **see [below](#resolv)**). Use the `DSERVE` directive in the config. 
 
 You may also want to include the domain `Chaosnet.NET.` in your `RSEARCH` directives, to get shorthand addresses to all ITS hosts on Chaosnet.
 
@@ -77,7 +77,7 @@ Both simple RFC-ANS protocols and stream protocols seem to work.
 
 `CHANM%` uses `GTDOM%`, so works. See [documentation](doc/CHANM.md).
 
-Surprisingly, the `TELNET` program of the Panda distribution already handled Chaosnet!
+Surprisingly, the `TELNET` program of the Panda distribution already handled Chaosnet (but see below)!
 
 ### Server programs
 
@@ -146,14 +146,22 @@ RESOLV should (be able to) use separate DNS servers for IN and CH classes, since
 
 The **workaround** is to set up your own caching server to handle both IN and CH ([see here](https://chaosnet.net/chaos-dns)).
 
+## Limitations
+
+A number of them.
+
+### LITES
+
+The code in `KLHSRV.MAC` (to support `LITES%` in KLH10 when it is compiled with `KLH10_DEV_LITES=1`) is disabled. The LITES hack requires one of the rare [Panda](https://github.com/DavidGriffith/panda-display) [displays](http://www.sparetimegizmos.com/Hardware/Panda.htm), but if you have one of those displays you need to enable the `KLHSRV.MAC` code again.
+
 ## Bugs
 
 Of course! Please report them to me.
 
 Known things:
 - `BUGINF FLKINT` when creating outgoing connections.
--- This seems not to cause problems, but indicates some bug of course.
+  -- This seems not to cause problems, but indicates some bug of course.
 - `BUGCHK IPIBLP` when lots of input coming in a connection.
--- This was related to a Chaosnet window handling bug in the [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) but could still appear as the result of a DoS attack.
+  -- This was related to a Chaosnet window handling bug in the [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) but could still appear as the result of a DoS attack.
 - Filename parsing for `CHA:` only checks if the name *begins* with a digit and then uses that as address, so parsing "3com" will just return 3. (See `HSTN$1` in `CHAOS.MAC`).
-- Using 50 as max host/domain name length here and there.
+- Here and there, 50 (decimal) is used as max host/domain name length.
