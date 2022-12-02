@@ -160,8 +160,8 @@ Of course! Please report them to me.
 
 Known things:
 - `BUGINF FLKINT` when creating outgoing connections.
-  -- This seems not to cause problems, but indicates some bug of course.
+	- This seems not to cause problems, but indicates some bug of course.
 - `BUGCHK IPIBLP` when lots of input coming in a connection.
-  -- This was related to a Chaosnet window handling bug in the [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) but could still appear as the result of a DoS attack.
+	- This was related to a Chaosnet window handling bug in the [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) but could still appear as the result of a DoS attack.
 - Filename parsing for `CHA:` only checks if the name *begins* with a digit and then uses that as address, so parsing "3com" will just return 3. (See `HSTN$1` in `CHAOS.MAC`).
 - Here and there, 50 (decimal) is used as max host/domain name length.
