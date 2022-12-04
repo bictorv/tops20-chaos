@@ -13,6 +13,7 @@ Install TELSER.EXE as SYSTEM:CHAOS.TELNET
 Install UPTIME.EXE as SYSTEM:CHAOS.UPTIME
 Install LOAD.EXE as SYSTEM:CHAOS.LOAD
 Install LIMRCK.EXE as SYSTEM:CHAOS.LIMERICK (note longer name)
+Install SNDSER.EXE as SYSTEM:CHAOS.SEND
 
 Start FILE.EXE at PURIFY to install it as SYSTEM:CHAOS.FILE.
 (The START command doesn't understand symbolic addresses, but
