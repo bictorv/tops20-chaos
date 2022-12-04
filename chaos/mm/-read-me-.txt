@@ -4,8 +4,11 @@ Since HSTNAM is a library which is used in other parts of the
 MM mailsystem, everything is recompiled by the (modified) 
 BUILD-MM.CTL.
 
+There is also a new server for SMTP over Chaosnet, SMTCHA.
+
 To install things, copy almost every resulting .EXE file to 
 SYS: (I suggest <CHAOS.SUBSYS> to keep the Chaos separate).
+The SMTCHA program should be started in SYSJOB/SYSJB1.
 
 In the original Panda system, the following are set Ephemeral:
 MSTAT.EXE

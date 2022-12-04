@@ -117,6 +117,9 @@
 ! SMTDCN -- DECnet SMTP listener
 @LOAD %"NOINITIAL" SMTDCN
 !
+! SMTCHA -- Chaosnet SMTP listener
+@LOAD %"NOINITIAL" SMTCHA
+!
 ! VMAIL - DECnet MAIL-11 (VAX/VMS) listener/server
 @LOAD %"NOINITIAL" VMAIL
 !

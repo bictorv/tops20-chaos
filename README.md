@@ -77,19 +77,25 @@ Both simple RFC-ANS protocols and stream protocols seem to work.
 
 `CHANM%` uses `GTDOM%`, so works. See [documentation](doc/CHANM.md).
 
-Surprisingly, the `TELNET` program of the Panda distribution already handled Chaosnet (but see below)!
+Surprisingly, the `TELNET` and `MMAILR` programs of the Panda distribution already handled Chaosnet! Both have been fixed to change the priority order between TCP/Internet and Chaosnet, to prefer Chaosnet. A new `SMTCHA` program which implements an SMTP server for Chaosnet has been added (see below).
 
 ### Server programs
 
 If you install `CHARFC.EXE` in `SYSTEM:`, and start it in a SYSJOB, it will get all unclaimed RFC packets, and search for server programs `SYSTEM:CHAOS`.*contact* and start them.  See [the Chaosnet report](https://chaosnet.net/amber.html#Server-Programs-1) for documentation of `CHARFC`. 
 
-There are simple server programs for the `TIME`, `UPTIME`, `NAME`, `LIMERICK`, `FILE`, `LOAD`, and `TELNET` contacts, see [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](chaos/system/-read-this-.txt).
+There are simple server programs for the `TIME`, `UPTIME`, `NAME`, `LIMERICK`, `FILE`, `LOAD`, `TELNET`, and `SEND` contacts, see [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](chaos/system/-read-this-.txt).
 
 ### Client programs
 
-The `FINGER` program has been fixed to finger Chaosnet hosts. You will need to compile it (see `<CHAOS.FINGER>-READ-THIS-.TXT`) and install it (in `<SUBSYS>`).
+I suggest installing client programs in `PS:<CHAOS.SUBSYS>` and put that on the system-wide definition of `SYS:` (by editing `SYSTEM:7-1-CONFIG.CMD`, and putting it before `PS:<SUBSYS>`).
 
-Although `TELNET` already could make Chaosnet connections, I have changed the priority order between TCP and Chaos to prefer Chaos. Connect to `<CHAOS.TELNET>`, submit `TELNET.CTL`, and install `TELNET.EXE` in `<SUBSYS>`.
+The `FINGER` program has been fixed to finger Chaosnet hosts. You will need to compile it (see `<CHAOS.FINGER>-READ-THIS-.TXT`) and install it (in `<CHAOS.SUBSYS>`).
+
+Although `TELNET` already could make Chaosnet connections, I have changed the priority order between TCP and Chaos to prefer Chaos. Connect to `<CHAOS.TELNET>`, submit `TELNET.CTL`, and install `TELNET.EXE` in `<CHAOS.SUBSYS>`.
+
+The MM mailsystem has modifications (in `<CHAOS.MM>`) to prefer Chaos over Internet/TCP connections. Connect to `<CHAOS.MM>` and submit `BUILD-MM.CTL`, and read `<CHAOS.MM>-READ-ME-.TXT`.
+A `<CHAOS.SUBSYS>` directory with pre-compiled binaries is provided for your convenience, but the binaries for `MAISER` and `MAPSER` live in `SYSTEM:` and are not included.
+The `SMTCHA` program should be started in SYSJOB/SYSJB1 (similarly to `SMTJFN`), not as `SYSTEM:CHAOS.SMTP`.
 
 ### EXEC modifications
 
@@ -138,7 +144,6 @@ Some supplemental documentation for JSYSes with extended functionality:
 ## What should be done later
 
 - SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
-- MMAILR support would be nice!
 
 ### RESOLV
 
