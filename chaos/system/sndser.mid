@@ -1,0 +1,503 @@
+;;chaosnet SEND server for tops-20 -*-midas-*-
+title sndser
+
+ifndef 20x,[
+ife .osmid-'TOPS20,20x==1
+ife .osmid-'TWENEX,20x==1
+.else 20x==0
+]
+
+.decsav
+
+ifn 20x,.insrt unv:chasym.mid
+.else .insrt <chaos>chasym.mid
+
+a=1
+b=2
+c=3
+d=4
+e=5
+j=7
+t=10
+tt=11
+lfl==12
+p=17
+
+npdl==10
+debug:	0
+pdl:	block npdl
+user:	block 10
+userno:	0
+ttys:	block 20
+txtsiz:	0
+netjfn:	0
+msgsiz==100
+msgbuf:	block msgsiz
+chapkt:	block chpmxw
+filerr:	0
+filnam:	block 20
+
+die:	skipn debug		;if debugging, print last problem (if any)
+	 jrst die0
+	geter
+	 erjmp die0		;guess none
+	hrroi a,[asciz/?SNDSER: /]
+	psout
+	movei a,.priou
+	setz c,
+	erstr
+	 jfcl
+	 jfcl
+	hrroi a,[asciz/ (at /]
+	psout
+	movei a,.priou
+	seto b,
+	setz c,
+	odtim
+	 erjmp .+1
+	hrroi a,[asciz/)
+/]
+	psout
+die0:	gjinf
+	skipn debug		;if debugging
+	 skipn c		; or job 0 fork (obsolete, really)
+	 haltf
+	seto a,
+	lgout
+	 haltf
+
+go:	reset
+	movei a,.fhslf
+	setob c,b
+	epcap
+	move p,[-npdl,,pdl-1]
+	movsi a,(gj%old\gj%sht)
+	hrroi b,[asciz /CHA:.SEND/]
+	gtjfn
+	 jrst die
+	move b,[8_30.+of%rd+of%wr]
+	openf
+	 jrst die
+	movem a,netjfn
+
+;;get the user to talk to
+getusr:	move a,netjfn
+	movei b,.mopkr		;read a single packet (the rfc)
+	movei c,chapkt
+	mtopr
+	move a,[440800,,chapkt+chpkdt]	;point to data portion
+	ldb b,[chapkt+$cpknb]	;get byte count
+getus1:	ildb d,a
+	cain d," 
+	 jrst getus2		;found start of user
+	sojge b,getus1
+	movei b,[asciz /Please specify the user in the RFC./]
+	jrst sndcls		;tell person they are losing
+
+getus2:	move c,[440700,,user]
+getus3:	ildb d,a
+	cain d," 
+	 jrst getus4
+	idpb d,c
+	sojge b,getus3
+getus4:	setz d,
+	idpb d,c		;end with a null
+	movsi a,(rc%emo)	;require exact match
+	hrroi b,user
+	rcusr
+	tlnn a,(rc%nom)		;didn't match?
+	 jrst gotusr		;ok
+	movei b,[asciz /No such user as "/]
+	pushj p,sndcl0		;setup cls packet in response
+	movei b,user
+	pushj p,movstr
+	movei b,[asciz /"./]
+	pushj p,movstr
+	jrst sndclp
+
+;;now have the person to try to send to,
+;;look around for some jobs logged in as that person
+gotusr:	movem c,userno		;save user number
+	pushj p,chkjob		;get tty's logged in as this person
+	 jrst nolog		;not logged in
+
+;;now see which of the jobs are accepting links
+chklnk:	movsi t,-20
+chklnl:	skipg a,ttys(t)
+	 jrst noacp		;all refusing links
+	tro a,.ttdes		;make a device designator
+ifn 0,[
+	rfmod
+	 erjmp chklnx
+	trne b,tt%alk		;allowing links?
+	 jrst getmes		;yes, read in the message
+]
+ife 0,[
+	movei b,.mortf
+	mtopr			;Check if SENDs are refused
+	 erjmp chklnx
+	trnn c,mo%num+mo%ntm	;Neither nonpriv or all
+	 jrst getmes		; then read in the message
+]
+chklnx:	aobjn t,chklnl		;no, keep looking
+
+noacp:	movei b,[asciz /User is refusing messages/]
+	jrst sndcls
+
+nolog:	movei b,[asciz /User not logged in./]
+sndcls:	pushj p,sndcl0
+sndclp:	dpb d,[chapkt+$cpknb]	;store byte count
+	movei a,.cocls
+	dpb a,[chapkt+$cpkop]	;opcode is CLS
+	move a,netjfn
+	movei b,.mopks		;send a raw packet
+	movei c,chapkt
+	mtopr
+	 erjmp .+1
+	closf
+	 jfcl
+	jrst die
+	
+sndcl0:	setz d,			;init byte count
+	move a,[440800,,chapkt+chpkdt]
+
+;;;move a string from b to a
+movstr:	hrli b,440700
+movst1:	ildb c,b
+	jumpe c,cpopj
+	idpb c,a
+	aoja d,movst1
+
+;;try to find jobs logged in as that user
+chkjob:	setz j,			;starting number for job
+	movsi t,-20
+
+chkjbl:	movei a,(j)		;job number
+	move b,[-2,,d]		;into this block
+	movei c,.jitno		;starting with tty number
+	getji
+	 jrst chkjbx		;maybe reached end of tables
+	camn e,userno		;save user number?
+	 skipge d		;and attached?
+	 aoja j,chkjbl		;no, try next
+	movem d,ttys(t)		;save tty number
+	aobjp t,chkjbf		;tty table full, punt the rest
+	aoja j,chkjbl
+
+chkjbx:	caie a,gtjix3		;invalid job number?
+	 aoja j,chkjbl		;not yet, keep trying
+chkjbf:	trnn t,-1		;got any?
+	 popj p,		;no, single return for not found
+	setom ttys(t)		;mark the end of the list
+cpop1j:	aos (p)			;skip return
+cpopj:	popj p,
+
+;read the message
+getmes:	move a,netjfn
+	movei b,.moopn
+	mtopr			;accept the connection
+	move a,[440700,,msgbuf]
+	setz d,			;init byte count
+	movei b,[asciz /
+ [Message from /]
+	pushj p,movstr
+ifn 0,[
+	push p,a
+	push p,d
+	pushj p,gfrnam		;get name for this host
+	 jrst [	move a,[440700,,msgbuf+20]	;random string space
+		movei b,"#
+		idpb b,a
+		ldb b,[chapkt+$cpksa]
+		movei c,8
+		nout
+		 jfcl
+		movei b,msgbuf+20
+		jrst .+1]
+	pop p,d
+	pop p,a
+	pushj p,movstr
+	movei b,[asciz / (Chaos): /]
+	pushj p,movstr
+];ifn 0,
+	movni c,msgsiz*5	;maximum size
+	addi c,(d)		;less space already used
+	move d,a		;updated byte pointer
+	move a,netjfn
+	setz lfl,		;haven't seen any lf yet
+msglup:	bin			;get character
+	jumpe b,[gtsts
+		tlne b,(gs%eof)
+		 jrst msgdon
+		setz b,
+		jrst .+1]
+	cain b,215
+	 jrst [	skipe lfl
+		 jrst .+1	;[
+		movei lfl,"]
+		idpb lfl,d
+		aoja c,.+1]
+	idpb b,d
+	cain b,215
+	 aoja c,[movei b,12
+		idpb b,d
+		jrst .+1]
+	aojl c,msglup
+toolng:	movei b,[asciz /Message too long./]
+	jrst sndcls
+
+msgdon:	ldb b,d			;Check last byte
+	caie b,12		;If it wasn't LF, add CRLF
+	 jrst [ movei b,15
+		idpb b,d
+		movei b,12
+		idpb b,d
+		addi c,1
+		aoja c,.+1 ]
+	addi c,msgsiz*5		;get the size of the message
+	movem c,txtsiz		;save it
+
+;;now have the message, attempt to send it
+gotmes:	pushj p,chkjob		;look again for that user
+	 jrst nolog1		;no longer logged in
+	setzm filerr
+	pushj p,wrtsnd		;write SENDS.TXT file
+	 movem a,filerr		;save this first error
+
+;;now send to those jobs that are accepting links
+	movsi t,-20
+	setz e,			;count them here
+sndmsg:	skipg a,ttys(t)
+	 jrst sndmsf		;done sending message, give response
+	tro a,.ttdes		;make a device designator
+ifn 0,[
+	rfmod
+	 erjmp chklnx
+	trnn b,tt%alk		;allowing links?
+	 jrst sndmsl		;no, skip to next one
+]
+	movei b,.mortf
+	mtopr			;Check if SENDs are refused
+	 erjmp chklnx
+	trne c,mo%num+mo%ntm	;either refusing nonpriv or all
+	 jrst sndmsl		; then skip to next one
+	dobe			;wait for his output buffer to free up
+	 erjmp sndmsl
+	hrroi b,msgbuf
+ifn 0,[
+	movn c,txtsiz		;size of the message to send
+	sout
+	 erjmp sndmsl
+]
+ife 0,[
+	ttmsg
+	 erjmp [
+		hrroi a,[asciz /SNDSER ttmsg failure: /]
+		esout
+		movei a,.priou
+		seto b,
+		setz c,
+		erstr
+		 nop
+		 nop
+		movei b,[asciz /Failed to send message./]
+		jrst sndcls
+		]
+;	 erjmp sndmsl
+]
+	addi e,1		;count one more sent
+sndmsl:	aobjn t,sndmsg
+sndmsf:	jumpe e,noacp1		;no longer accepting links
+	move a,filerr
+	caie a,opnx9		;was sends file busy before?
+	 jrst sndmsc
+	movei t,5		;try five more times
+sndmse:	pushj p,wrtsnd	; try again.
+	 jrst [	caie a,opnx9
+		 jrst sndmsc	;leave loop if strange error,
+		sojle t,.+1	;or if tried enough times.
+		movei a,2000.	;wait 2 sec each time
+		disms
+		jrst sndmse]
+
+sndmsc:	movei b,[asciz /Message sent successfully/]
+	jrst sndcls
+
+nolog1:	movei b,[asciz /User no longer logged in./]
+	jrst sndcls
+
+noacp1:	movei b,[asciz /User no longer accepting links./]
+	jrst sndcls
+
+;;try to write to user's SENDS.TXT file
+wrtsnd:	hrroi a,filnam
+	setz c,
+ifn 20x,[
+	hrroi b,[asciz /PS:</]	;>
+	sout
+]
+.else [
+	movei b,"<		;>
+	bout
+]
+	hrroi b,user
+	sout			;<
+	hrroi b,[asciz />SENDS.TXT.0;T/]
+	sout
+	movsi a,(gj%sht)
+	hrroi b,filnam
+	gtjfn
+	 popj p,
+	push p,a
+	move b,[7_30.+of%app]
+	openf
+	 jrst [	exch a,(p)
+		rljfn
+		 jfcl
+		pop p,a
+		popj p,]
+	pop p,a
+	movei b,12
+	bout
+	movei b,15
+	bout
+	hrroi b,msgbuf
+	movn c,txtsiz
+	sout
+	closf
+	 jfcl
+	jrst cpop1j
+
+;;; The format of the compiled HOSTS2 file is:
+
+hstsid==0	; wd 0	SIXBIT /HOSTS2/
+namptr==10	; wd 10 Address in file of NAME table.
+sitptr==11	; wd 11	Address in file of SITE table.
+netptr==12	; wd 12 Address in file of NETWORK table.
+
+;;NETWORK table
+;; wd 0	Number of entries in table.
+;; wd 1	Number of words per entry. (2)
+netnum==0	; wd 0	network number
+ntlnam==1	; wd 1 LH - address in file of name of network
+ntrtab==1	; wd 1 RH - address in file of network's address table
+
+;;ADDRESS table(s)
+;; wd 0	Number of entries in table.
+;; wd 1	Number of words per entry. (2)
+addadr==0	; wd 0	Network address of this entry including network number
+adlsit==1	; wd 1 LH - address in file of SITE table entry
+adrcdr==1	; wd 1 RH - address in file of next ADDRESS entry for this site
+		;	    0 = end of list
+
+;;SITE table
+;; wd 0	Number of entries in table.
+;; wd 1	Number of words per entry. (3)
+stlnam==0	; wd 0 LH - address in file of official host name
+stradr==0	; wd 0 RH - address in file of first ADDRESS table entry for
+		;	    this site.  Successive entries are threaded
+		;	    together through ADRCDR.
+stlsys==1	; wd 1 LH - address in file of system name (its, tip, tenex, etc.)
+		;			may be 0 => not known.
+strmch==1	; wd 1 RH - address in file of machine name (pdp10, etc.)
+		;			may be 0 => not known.
+stlflg==2	; wd 2 LH - flags:
+stfsrv==400000	;	4.9 1 => server site (according to nic)
+		; wd 2 RH - not used
+
+;;NAMES table:
+;; wd 0	Number of entries
+;; wd 1	Number of words per entry. (1)
+nmlsit==0	; lh	address in file of SITE table entry for this host.
+nmrnam==0	; rh	address in file of host name
+
+;;; All names are ASCIZ strings, all letters upper case.
+;;; The strings are stored before, after and between the tables.
+;;; All strings are word-aligned, and fully zero-filled in the last word.
+
+;;; Network addresses are defined as follows, for purposes of this table:
+;;;    4.9     0
+;;;    4.8-4.1 network number
+;;;    Chaos net (number 7):
+;;;	3.9-2.8	0
+;;;	2.7-1.1 address (2.7-1.9 subnet, 1.8-1.1 host)
+;;;    Arpanet (number 12):	(note, old-format Arpanet addresses
+;;;	3.9-3.8	0	 	never appear in the host table.)
+;;;	3.7-2.1	IMP
+;;;	1.9	0
+;;;	1.8-1.1	Host
+;;;    Dialnet (number 26):
+;;;	3.9-3.1	0
+;;;	2.9-1.1	address in file of ASCIZ string of phone number
+
+nw%chs==7	;Chaos net
+nw%arp==12	;Arpanet
+nw%dln==26	;Dialnet
+
+hstpag==100000
+
+;;; get the foreign host name
+gfrnam:	movsi a,(gj%old\gj%sht)
+	hrroi b,[asciz /SYSTEM:HOSTS2.BIN/]
+	gtjfn
+	 popj p,
+	push p,a		;enter here with jfn already
+	movei b,of%rd
+	openf
+	 jrst [	pop p,a
+		rljfn
+		 jfcl
+		popj p,]
+	sizef
+	 jrst [	pop p,a
+		closf
+		 jfcl
+		popj p,]
+	pop p,a
+	hrlz a,a		;start with page 0 of file
+	move b,[.fhslf,,hstpag/1000]
+ifn 20x,[
+	hrli c,(pm%cnt\pm%rd\pm%cpy)
+	pmap
+]
+.else [
+	hrrz d,c
+	movsi c,(pm%rd\pm%cpy)
+	pmap
+	sojle d,.+3
+	addi a,1
+	aoja b,.-3
+]
+	move a,netjfn
+	movei b,34		;.mofhs
+	mtopr
+	hrli c,nw%chs_9
+
+gfrnm0:	push p,c		;save host number
+	move a,hstpag+netptr	;pointer to network table
+	dmove t,hstpag(a)
+	addi a,2
+	lsh c,-27.		;just network number
+gfrnm1:	camn c,hstpag+netnum(a)	;found that network
+	 jrst gfrnm2
+	add a,tt
+	sojg t,gfrnm1
+	pop p,(p)
+	popj p,			;not found
+
+gfrnm2:	hrrz a,hstpag+ntrtab(a)	;pointer to network's address table
+	dmove t,hstpag(a)
+	addi a,2
+	pop p,c			;get back host
+gfrnm3:	camn c,hstpag+addadr(a)
+	 jrst gfrnm4
+	add a,tt
+	sojg t,gfrnm3
+	popj p,
+
+gfrnm4:	hlrz a,hstpag+adlsit(a)	;site entry
+	hlrz b,hstpag+stlnam(a)	;name
+	addi b,hstpag		;make absolute
+	jrst cpop1j
+
+end go
