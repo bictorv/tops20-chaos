@@ -1651,7 +1651,7 @@ ADCHAO:	call gch		;Read terminator of keyword
 	callret reeat
 
 adcher: jsp t1,adrerr
-	asciz /%Colon not after CHAOS/
+	asciz /%Colon not after CHAOS-ADDRESS/
 
 adchb:	jsp t1,adrerr
 	asciz /%Invalid CHAOS address/
