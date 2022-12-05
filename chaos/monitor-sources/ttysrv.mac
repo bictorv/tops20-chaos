@@ -581,7 +581,90 @@ TTTWID:	POINT 8,TTYPE0(3),27	;WIDTH OF LINE
 TTTLEN:	POINT 8,TTYPE0(3),35	;LENGTH OF PAGE
 
 CTRLOF::0			;NEW CTRL-O HANDLING POSSIBLE
+	SUBTTL DEFINITIONS FOR TTYPE2 TABLE (PER TERMINAL DISPLAY INFORMATION)
 
+;INDEXED BY TERMINAL TYPE
+DEFSTR	DPTB,TTYPE2,35,18	; Address of display control table
+	DPTBB==1B0		; if set, then bits 1-35 are 7 bit bytes, else
+	DPTBS==1B1		; If set, then RH is address of string, else
+	DPTBR==1B2		; If set, then RH is address of routine and
+	DPTBP==1B3		; If set, repeat count is "parameterized"
+DEFSTR  DPCNT,,17,6		; Estimated length of string or routine
+DEFSTR	DPBSZ,,11,4		; Byte size for strings
+; Table defining ^P codes in terms of .VT codes, and whether they take
+; arguments.
+
+; Note: NARGS can only be 0 or 1 at present
+
+DEFINE	VT(TCOA,NARGS<0>)
+   <	NARGS,,TCOA
+   >
+
+if1,<printx Please implement VTSOP>
+repeat 0,< ;; NYI
+VTPTAB:	VT(VTOADV)		;ADVANCE LINE		CODE 01 "A"
+	VT(VTOBCK)		;CURSOR BACK		CODE 02 "B"
+	VT(VTOCLR)		;CLEAR WINDOW		CODE 03 "C"
+	VT(VTODWN)		;CURSOR DOWN		CODE 04 "D"
+	VT(VTOCEW)		;CLEAR TO END OF WINDOW	CODE 05 "E"
+	VT(VTOFWD)		;CURSOR FORWARD		CODE 06 "F"
+	VT(VTOVBL)		;VISIBLE BELL		CODE 07 "G"
+	VT(VTOHRZ,1)		;HORIZONTAL POSITION	CODE 10 "H"
+	VT(VTOINC)		;INSERT CHARACTER	CODE 11 "I"
+	VT(VTODLC)		;DELETE CHARACTER	CODE 12 "J"
+	VT(VTOERA)		;ERASE CHARACTER	CODE 13 "K"
+	VT(VTOCEL)		;CLEAR TO END OF LINE	CODE 14 "L"
+	VT(0)			;UNDEFINED		CODE 13 "M"
+	VT(0)			;UNDEFINED		CODE 16 "N"
+	VT(0)			;UNDEFINED		CODE 17 "O"
+	VT(VTOSEC)		;SEND A ^P		CODE 20 "P"
+	VT(VTOHMD)		;HOME DOWN		CODE 21 "Q"
+	VT(VTORES)		;RESTORE CURSOR POS	CODE 22 "R"
+	VT(VTOSAV)		;SAVE CURSOR POS	CODE 23 "S"
+	VT(VTOHOM)		;HOME UP		CODE 24 "T"
+	VT(VTOUP)		;CURSOR UP		CODE 25 "U"
+	VT(VTOVRT,1)		;VERTICAL POSITION	CODE 26 "V"
+	VT(0)			;UNDEFINED		CODE 27 "W"
+	VT(VTOBEC)		;BACKSPACE AND ERASE CH	CODE 30 "X"
+	VT(0)			;UNDEFINED		CODE 31 "Y"
+	VT(VTOHMD)		;HOME DOWN		CODE 32 "Z"
+	VT(VTOINL)		;INSERT LINE		CODE 33 "["
+	VT(VTODLL)		;DELETE LINE		CODE 34 "\"
+	VT(0)			;OBSOLETE		CODE 35 "]"
+	VT(VTOINC)		;INSERT CHARACTER	CODE 36 "^"
+	VT(VTODLC)		;DELETE CHARACTER	CODE 37 "_"
+VTPMAX==.-VTPTAB
+
+; Table of VTS function handling routines.
+
+DEFINE TC (RTN)
+   <	RTN
+   >
+
+VTSTAB:	TC(VTONOP)		; .VTNOP - NOP (force update)
+	TC(VTOFWD)		; .VTFWD - Cursor forward
+	TC(VTOBCK)		; .VTBCK - Cursor back
+	TC(VTOUP)		; .VTUP - Cursor up
+	TC(VTODWN)		; .VTDWN - Cursor down
+	TC(VTOHRZ)		; .VTHRZ - Set horizontal pos
+	TC(VTOVRT)		; .VTVRT - Set vertical pos
+	TC(VTOMOV)		; .VTMOV - Move cursor (x and y)
+	TC(VTOHOM)		; .VTHOM - Home up
+	TC(VTOHMD)		; .VTHMD - Home down
+	TC(VTOADV)		; .VTADV - Advance to next line
+	TC(VTOSAV)		; .VTSAV - Save pos
+	TC(VTORES)		; .VTRES - Restore pos
+	TC(VTOCLR)		; .VTCLR - Clear window
+	TC(VTOCEW)		; .VTCEW - Clear to end-of-window
+	TC(VTOCEL)		; .VTCEL - Clear to end-of-line
+	TC(VTOERA)		; .VTERA - Erase character ???
+	TC(VTOBEC)		; .VTBEC - Backspace and erase
+	TC(VTOLID)		; .VTLID - Line insert/delete
+	TC(VTOCID)		; .VTCID - CHaracter insert/delete
+	TC(VTOSEC)		; .VTESC - Output VTS escape
+	TC(VTOVBL)		; .VTVBL - Visible bell
+VTSMAX==VTSTAB-.
+>; repeat 0
 	SUBTTL Definitions -- TDCALx Macros
 
 ;This code supports a number (NLTYPS) of different types of terminals.  The
