@@ -1,0 +1,12 @@
+To generate a new MIDAS.EXE based on the new MONSYM.UNV (with Chaos symbols)
+do what MIDAS.MID says, i.e:
+
+First make the monitor, and install the resulting MONSYM.UNV in SYS:.
+
+Compile CVTUNV.MID with the existing MIDAS, and run CVTUNV.EXE to 
+generate TNXDFU.MID.
+
+Compile MIDAS.MID with the existing MIDAS,
+get midas
+start it at PURIFY (which you can find the address of by EXAMINE PURIFY).
+save it in SYS:

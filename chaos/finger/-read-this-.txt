@@ -1,1 +1,5 @@
-Copy HSTNAM.REL from <SUBSYS>, and compile GETLOC.MAC before compiling FINGER.
+First compile <CHAOS.MM>HSTNAM.MAC and install it in SYS:.
+
+Copy <FINGER>TINIDF.UNV to this directory, or define DSK: as DSK:,<FINGER>.
+
+Then compile GETLOC.MAC and FNGDEF.MAC before compiling FINGER.
