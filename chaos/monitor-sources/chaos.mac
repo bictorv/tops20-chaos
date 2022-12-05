@@ -549,6 +549,13 @@ CHAINI::
 	SETZM BUGCOU		;XX3027 NO BUGCHKS YET
 IFN CHINET,<
 	SETOM CHPKTI		; Hold off on internet buffer pointer
+	;; This must already be defined for this case
+	skipg mychad
+	ifnsk.
+	 bug.(chk,nochad,chaos,soft,<No Chaosnet address defined>)
+	 setzm chaon
+	 ret
+	endif.
 >
 	MOVE 1,[CHATTW,,CHATTW+1]
 	BLT 1,CHATTW+NTTCVT	;CLEAR OUT WHOLE TABLE
@@ -2133,7 +2140,14 @@ IFN CHINET,<
 	;; now assign an internet queue
 	movei t1,chiqb		;oddly, doesn't take extended address
 	skipn t2,chipgw
-	  BUG.(HLT,NOGWAD,CHAOS,SOFT,<No Chaos-to-IP gateway found>)
+	ifnsk.
+	  BUG.(chk,NOGWAD,CHAOS,SOFT,<No Chaos-to-IP gateway found>)
+	  setzm chaon		;Say net is down
+	  ;; just wait forever
+	  movei t1,^d10000
+	  disms%
+	  jrst .-1
+	endif.
 	lsh t2,4		;shift into place
 ;	bug.(inf,cinigw,chaos,soft,<Chaos-to-IP gw shifted>,<<t2,ipaddr>>)
 	movem t2,.iqfhv(t1)	;save gateway address
