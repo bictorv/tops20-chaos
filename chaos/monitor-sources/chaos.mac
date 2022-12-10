@@ -340,7 +340,7 @@ DEFINE NODEB <IFE CHSDBG>
 ;XX3026	EXTN <CHANAO>		;OFFSET IN HOST TABLE OF CHAOS ADDRESS TABLE
 	EXTN <BUGCOU,TIMCOU>	    ;XX3027 COUNT OF CHAXOD BUGCHKS, TIME COUNT
 	EXTN <CHQLCL,CHQRFP>
-	EXTN <CHATTW,CHAPRO,MYHNAM,MYHTIM>
+	EXTN <CHATTW,CHAPRO,MYHNAM,mypnam,MYHTIM>
 	EXTN <CHRFHC>
 	EXTN <CHABFT,CHNPOW,CHNPWT,CHALRW,CHABFW>
 	EXTN <CHANOL>
@@ -554,6 +554,12 @@ IFN CHINET,<
 	ifnsk.
 	 bug.(chk,nochad,chaos,soft,<No Chaosnet address defined>)
 	 setzm chaon
+	 ret
+	endif.
+	skipn t2,chipgw
+	ifnsk.
+	 BUG.(chk,NOGWAD,CHAOS,SOFT,<No Chaos-to-IP gateway found>)
+	 setzm chaon		;Say net is down
 	 ret
 	endif.
 >
@@ -2125,12 +2131,57 @@ ife chinet,<
 	CALL CHSINI		;BUILD OUR HOST TABLE FROM HOSTS2 NOW
 >
 ifn chinet,<
-	;; Not really CHINET-specific
+	;; Not really CHINET-specific.
+	;; Get MYHNAM from SYSTEM:HOSTS.TXT which IP already read
+	setzm myhnam
 	movx t1,.gthns
 	hrroi t2,myhnam
 	seto t3,
 	gthst%
 	 erjmp .+1
+	;; Then get my pretty name from MONNAM.TXT
+	;; until space or CRLF
+	setzm mypnam
+	movx t1,gj%sht!gj%old
+	hrroi t2,[asciz "SYSTEM:MONNAM.TXT"]
+	gtjfn%
+	ifskp.
+	 movx t2,of%rd!fld(7,of%bsz)
+	 openf%
+	 anskp.
+	  movei t3,^d49
+	  move t4,[point 7,mypnam]	;my pretty name
+	  do.
+	   bin%
+	;; copy A-Za-z0-9-_ instead (not .)
+	   cail t2,"A"		;A-Z?
+	    caile t2,"Z"
+	   ifnsk.		;no
+	    cail t2,"a"		;a-z?
+	     caile t2,"z"
+	   annsk.		;no
+	    cail t2,"0"		;0-9?
+	     caile t2,"9"
+	   annsk.		;no
+	    caie t2,"-"		;-?
+	     cain t2,"_"	;_?
+	   anskp.		;no
+	    exit.		;Then end of what we copy
+	   else.
+	    idpb t2,t4		;else copy
+	    sojg t3,top.	;and loop
+	   endif.
+	  od.
+	  setz t2,		;End it off
+	  idpb t2,t4
+	else.
+	 ;; No system:monnam.txt, so use host name
+	 hrroi t1,mypnam
+	 hrroi t2,myhnam
+	 setz t3,
+	 sout%
+	  erjmp .+1
+	endif.
 >
 IFN CHINET,<
 	MOVEI T1,^D5000		; Sleep for a little
@@ -2139,15 +2190,7 @@ IFN CHINET,<
 	SETZM CHPKTI		; Now allow us to get an internet buffer
 	;; now assign an internet queue
 	movei t1,chiqb		;oddly, doesn't take extended address
-	skipn t2,chipgw
-	ifnsk.
-	  BUG.(chk,NOGWAD,CHAOS,SOFT,<No Chaos-to-IP gateway found>)
-	  setzm chaon		;Say net is down
-	  ;; just wait forever
-	  movei t1,^d10000
-	  disms%
-	  jrst .-1
-	endif.
+	move t2,chipgw
 	lsh t2,4		;shift into place
 ;	bug.(inf,cinigw,chaos,soft,<Chaos-to-IP gw shifted>,<<t2,ipaddr>>)
 	movem t2,.iqfhv(t1)	;save gateway address
@@ -2495,7 +2538,7 @@ CHIRFS:	PUSH P,PKT
 	MOVEM T1,CHPKS(PKT)
 	MOVEI T1,CHPKDT(PKT)
 	HRLI T1,(<POINT 8,>)
-	MOVE T2,[POINT 7,MYHNAM]
+	MOVE T2,[POINT 7,MYpNAM]
 	MOVEI T3,^D32
 CHIRS1:	ILDB Q2,T2
 	JUMPE Q2,CHIRS2
