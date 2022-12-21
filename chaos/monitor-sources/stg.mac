@@ -6938,6 +6938,62 @@ ifn 0,<
 
 IFN <.-TTYPE1>-NTTYPS,<PRINTX %TERM TYPE TABLES OF DIFFERENT LENGTHS>
 
+;; Third parallel table, essentially replacing TTYPE1
+;; when VTS support is here.
+;; Simplify: 
+;; - take size from TTYPE0,
+;; - ignore padding except for what TTYPE0 is used for
+;;   (since all terminals are emulated these days)
+;; - Assume all "reserved for customer" are glass
+;; - use one display table for printing
+;; - use one for scolling dumb/glass terminals
+;; - one for VT52
+;; - one for all VT100 (ANSI), 102,125,131,200,300
+;; - and one for Supdup
+
+	extn <TPRTDT,GLASDT,VT52DT,VT10DT,SUPDT>
+
+DEFINE	TY2(ADDR,FLAGS<0>)
+    <	FLAGS!ADDR
+    >
+
+TTYPE2::
+repeat 3,<
+	TY2(TPRTDT)		; 0-2 printing
+>
+repeat 2,<
+	TY2(GLASDT)		; 3-4 Glass
+>
+	TY2(VT10DT)		; 5 - Ansi (VT100)
+repeat <^d13-^d5>,<
+	TY2(GLASDT)		; 6-13 Glass
+>
+	TY2(TPRTDT)		; 14 - LA36
+	TY2(VT52DT)		; 15 - VT52
+	TY2(VT10DT)		; 16 - VT100
+repeat 2,<
+	TY2(TPRTDT)		; 17-18 printing
+>
+repeat <^d25-^d18>,<
+	TY2(GLASDT)		; 19-25 Glass
+>
+	TY2(SUPDT)		; 26 - Supdup!
+repeat <^d34-^d26>,<
+	TY2(GLASDT)		; 27-34 Glass
+>
+repeat <^d40-^d34>,<
+	TY2(VT10DT)		; 35-40 VT100 style
+>
+repeat <^d51-^d40>,<
+	TY2(GLASDT)		; 41-51 Glass
+>
+	TY2(VT10DT)		; 52 - VT300
+repeat <nttyps-1-^d52>,<
+	TY2(GLASDT)		;and the rest are glass
+>
+
+IFN <.-TTYPE2>-NTTYPS,<PRINTX %%TERM TYPE display TABLES OF DIFFERENT LENGTHS>
+
 ;CURSOR CONTROL TABLES.  TABLE FOR EACH TERMINAL TYPE, INDEXED
 ;BY FUNCTION.
 
