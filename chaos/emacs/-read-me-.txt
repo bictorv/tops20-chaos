@@ -1,0 +1,11 @@
+This directory is used to make an EMACS which works with VTS (MIT
+Virtual Terminals, used in the SUPDUP protocol).
+
+CONFIG.MID contains a terminal type code for VTS==26. which should
+match .TTSUP in the monitor.
+
+A working compile relies on a fresh NMIDAS compiled with a fresh
+TNXDFU generated from a fresh MONSYM.UNV, containing the VTS
+definitions.
+
+See EMACS.CTL for compilation instructions.
