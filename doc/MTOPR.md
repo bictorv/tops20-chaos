@@ -2,6 +2,8 @@
 
 See [the Chaosnet report](https://chaosnet.net/amber.html#Special-Operations) for the main documentation.
 
+Also `.MOFCI` for VTS terminals (although NYI atm).
+
 `MTOPR%` can return the following new errors:
 - `CHAOX1`: LOS received for connection
 - `CHAOX2`: Connection not in correct state

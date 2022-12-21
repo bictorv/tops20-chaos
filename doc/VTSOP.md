@@ -1,4 +1,6 @@
-# Documentation for VTSOP% (JSYS 635)
+# Documentation for VTSOP% (JSYS 642)
+
+**NOTE: new JSYS number - used to be 635, but that is the new `DOB%` JSYS in TOPS-20 v7**
 
 ## Function
 Do display dependent operations.

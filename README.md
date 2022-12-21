@@ -2,15 +2,14 @@
 
 Based on [old code](https://github.com/PDP-10/sri-nic/tree/master/files/src/mit/monitor) for TOPS-20 version 5 from MIT and SRI, ported into the [PANDA TOPS-20 version 7](https://github.com/PDP-10/panda), but in a separate tree to perhaps make it easier to port to other TOPS-20 distros/versions.
 
-See [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) for documentation.
+See [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) for documentation. 
+See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
 
 For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP encapsulation is used ([see description](https://github.com/bictorv/chaosnet-bridge/blob/master/README.md#chaos-over-ip)), so you need to have TCP/IP configured and working. (It pays off to specify the FQDN of your system in `HOSTS.TXT`.)
 
-See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
-
 ## Installation
 
-Begin by installing a Panda system and get Internet working on it. For this, you probably need to be running on a KL (emulator). The Chaosnet code has only been tried on a KL.
+Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it. For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
 
 Then restore the tape file `chaos.tpr` using `DUMPER`.
 
@@ -71,6 +70,8 @@ where *x.y.z.w* is the IP of your TOPS-20 system, *nnnn* is its Chaosnet address
 
 The contents of `SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT`, if it exists, is printed on new Chaosnet TELNET connections, just like `SYSTEM:INTERNET-LOGIN-MESSAGE.TXT` is printed on new TCP TELNET connections.
 
+The content of `SYSTEM:MONNAM.TXT`, if existing, up to the first non-[A-Za-z0-9_-] character is used as system name in `STATUS` replies (to allow for a FQDN as host name while keeping those replies brief). *Remark*: another option would be to use all of MONNAM.TXT in STATUS replies, similar to how LISPMs use their pretty-name (which is "human readable" and often longer than the system name). What do you think?
+
 ## What works
 
 Out-of-the-box, the system responds on `STATUS` packets, e.g. sent by HOSTAT or CHATST programs (see [here](https://chaosnet.net/amber.html#Status-1)). It only sends two meters: the number of input and output packets.
@@ -114,6 +115,10 @@ Support for the following has been added:
 
 Also, the `FINGER` command is allowed when not-logged-in, and takes a `/CHAOSNET` switch (to show only Chaosnet connections).
 
+### VTS support
+
+To be described: SUPDUP, SUPSRV, EMACS.
+
 ## Notes on programming
 
 Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) documentation.
@@ -125,11 +130,11 @@ Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html
 ### New JSYSes
 
 - [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTDOM%`.)
-- [VTSOP%](doc/VTSOP.md) (JSYS 635), to do display dependent operations (**NYI**)
 - [RTMOD%](doc/RTMOD.md) (JSYS 636), to read terminal modes.
 - [STMOD%](doc/STMOD.md) (JSYS 637), to set terminal modes.
 - [RTCHR%](doc/RTCHR.md) (JSYS 640), to read terminal characteristics.
 - [STCHR%](doc/STCHR.md) (JSYS 641), to set terminal characteristics.
+- [VTSOP%](doc/VTSOP.md) (JSYS 642), to do display dependent operations (**Note: new number**)
 
 Some supplemental documentation for JSYSes with extended functionality: 
 
@@ -150,6 +155,7 @@ Some supplemental documentation for JSYSes with extended functionality:
 ## What should be done later
 
 - SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
+- Summarise what changes were done to the original.
 
 ### RESOLV
 
