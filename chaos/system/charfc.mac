@@ -177,28 +177,55 @@ CHIF39:	MOVEI T4,0		;END WITH NULL
 CHIF3A:	MOVX T1,GJ%OLD!GJ%SHT
 	HRROI T2,CHASNM
 	GTJFN			;DOES THE FILE EXIST?
-	 ERJMP [TMSG <%CHARFC: no server for contact name ">
-;ifn 0,<
-;		MOVEI T1,CHPKDT(PKT) ;PICK UP NAME
-;		HRLI T1,(<POINT 8,>) ; AND TELL ALL ABOUT IT
-;		PSOUT
-;>
-;ife 0,<
-		MOVX T1,.PRIOU
-		MOVEI T2,CHPKDT(PKT)
-		HRLI T2,(<POINT 8,>)
-		LOAD T3,CPKNB,(PKT)
-		MOVN T3,T3
-		SOUT
-		 ERJMP [TMSG <???>
-			ERJMP .+1]
-;>
-		TMSG <"
->				;FORGET IT ENTIRELY (THIS STAYS OUT OF
-;; Should send a CLS right away
-		emjrst chif43,<No server for this contact name>
-;;		JRST CHARFL
-		]	; THE WAY OF ESTABLISHED SERVERS LIKE SUPDUP)
+	IFJER.
+ifn klflg,<
+	;; No program to start. Check if we already complained,
+	;; else do, and remember we did.
+	 movei t1,nocon
+	 move t2,[POINT 7,CHASNM+2,20]
+dbgz1:	 tbluk%
+	 ifjer.
+	  perstr <?CHARFC: table lookup failed: >
+	  emjrst chif43,<No server for this contact name>
+	 endif.
+	 txne t2,tl%exm
+	 ifskp.
+	  ;; It wasn't there, so warn
+	  TMSG <%CHARFC: no server for contact name ">
+	  move t1,[POINT 7,CHASNM+2,20]
+	  psout%
+	  tmsg <"
+ >
+	  hlrz t2,nocon
+	  cail t2,noconz	;if there is space
+	 anskp.
+	  ;; and add it to table
+dbgz0:	  move t1,conssi
+	  ;; copy the contact name
+	  hrli t1,(point 7,)
+	  push p,t1
+	  move t2,[POINT 7,CHASNM+2,20]
+	  setz t3,
+	  sout%
+	  ibp t1		; make sure NUL fits
+	  hrrzs t1		;Where did it end?
+	  aos t1		; +1
+	  movem t1,conssi	;Save as start for next
+	  pop p,t2
+	  movss t2
+	  movei t1,nocon	;Now add it for future
+dbgzz:	  tbadd%
+	  ifjer.
+	   perstr <%CHARFC: table add failed: >
+	  endif.
+	 endif.
+	 ;; Now send a CLS
+	 ;FORGET IT ENTIRELY (THIS STAYS OUT OF
+	 ; THE WAY OF ESTABLISHED SERVERS LIKE SUPDUP)
+	 ;; Send a CLS right away
+ >
+	 emjrst chif43,<No server for this contact name>
+	ENDIF.
 	MOVE T4,T1		;HOLD ONTO JFN
 	MOVE T2,[1,,.FBCTL]	;YES, SEE IF IT IS EPHEMERAL
 	MOVEI T3,T2
@@ -465,5 +492,14 @@ GCLPC0:	MOVE T1,FORKS(FKP)	;GET BACK HANDLE
 GCLPC:	SETZM FORKS(FKP)	;DONE WITH THIS FORK
 GCLPE:	AOBJN FKP,GCLP1		;CHECK ALL FORKS
 	RET			;DONE
+
+;; Table of no-contacts
+noconz==^d20
+nocon:	exp noconz
+	block noconz
+
+;; No-contact string space
+conssi:	exp conssp		;Start of next string
+conssp:	block noconz*<^d20/5>	;String space
 
 	END CHARFC
