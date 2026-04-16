@@ -1,0 +1,4 @@
+This directory contains some mainly untested Chaosnet servers and
+tools.
+
+More documentation will appear when they are tested.

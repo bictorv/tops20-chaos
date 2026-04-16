@@ -22,3 +22,11 @@ you can first EXAMINE PURIFY to find the address.)
 If the user ANONYMOUS exists, FILE reads SYSTEM:ANONYMOUS.USERFILE to
 find the password of that account. That file should of course be
 protected (e.g. 770000).
+
+In order to receive mail using the SMTP protocol, start SYS:SMTCHA.EXE
+e.g. by adding
+JOB n "login operator
+enable
+sys:smtcha
+"
+to your SYSJOB/SYSJB1.RUN.

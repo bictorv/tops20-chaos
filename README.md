@@ -3,16 +3,15 @@
 Based on [old code](https://github.com/PDP-10/sri-nic/tree/master/files/src/mit/monitor) for TOPS-20 version 5 from MIT and SRI, ported into the [PANDA TOPS-20 version 7](https://github.com/PDP-10/panda), but in a separate tree to perhaps make it easier to port to other TOPS-20 distros/versions.
 
 See [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) for documentation.
+See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
 
 For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP encapsulation is used ([see description](https://github.com/bictorv/chaosnet-bridge/blob/master/README.md#chaos-over-ip)), so you need to have TCP/IP configured and working. (It pays off to specify the FQDN of your system in `HOSTS.TXT`.)
 
-See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
-
 ## Installation
 
-Begin by installing a Panda system and get Internet working on it. For this, you probably need to be running on a KL (emulator). The Chaosnet code has only been tried on a KL.
+Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it. For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
 
-Then restore the tape file `chaos.tpr` using `DUMPER`.
+Then restore the tape file `chaos.tps` using `DUMPER`.
 
 To generate the monitor, connect to `<CHAOS.MONITOR-SOURCES>` and submit `MONGEN.CTL`. Install `MONITR.EXE` in `SYSTEM:`, and `CHAFDS.UNV` and `MONSYM.UNV`in `SYS:` (e.g. `<CHAOS.SUBSYS>`, see [below](#client-programs)).
 
@@ -26,20 +25,15 @@ You may then want to compile and install `TELNET`, `FINGER` and the MM mailsyste
 
 ## Configuration
 
-In `SYSTEM:INTERNET.ADDRESS`, add the following parameters for your IPNI#0
+Add the file `SYSTEM:CHAOSNET.ADDRESS`, with the following parameters:
 - `CHAOS-ADDRESS:`*nnnn* where *nnnn* is your octal Chaosnet  address
 - `CHAOS-IP-GATEWAY:`*a.b.c.d* where *a.b.c.d* is the IP address of a [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) which is configured to accept Chaos-over-IP from the IP of your TOPS-20 system (see [below](#chaosnet-bridge)).
-- `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`, max len 50. (The default *dname* is coded in `STG.MAC`, at `CHADDN`.)
+- `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`, max len 50. (Optional: the default *dname* is coded in `STG.MAC`, at `CHADDN`.)
 
 **Example:** the IP address of the TOPS-20 system is 10.0.1.11/24, the Chaosnet bridge has IP 10.0.1.1, and the TOPS-20 Chaosnet address is 3412 (octal).
 ```
-IPNI#0,10.0.1.11,PACKET-SIZE:1500,LOGICAL-HOST-MASK:255.255.255.0,CHAOS-ADDRESS:3412,CHAOS-IP-GATEWAY:10.0.1.1
+CHAOS-ADDRESS:3412,CHAOS-IP-GATEWAY:10.0.1.1
 ```
-
-Note that since the default buffer for parsing `INTERNET.ADDRESS` is quite short in a standard monitor (134 chars), you might want to keep the contents short, which you can do in two ways:
-  - If you only define one network, it is taken as default, so you can skip the `DEFAULT` keyword.
-  - If you have a default network, it is also (by default) the `PREFERRED` one, so you can skip that keyword too.
-  - Since the file is parsed with `TBLUK%`, you can used short-but-nonambiguous keywords (e.g. `LOG` would be sufficient for the mask).
 
 The Chaosnet host name is initialized from the IP host name, using `GTHST%`, so they need to match, of course. 
 
@@ -70,6 +64,8 @@ where *x.y.z.w* is the IP of your TOPS-20 system, *nnnn* is its Chaosnet address
 ### Greetings (optional)
 
 The contents of `SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT`, if it exists, is printed on new Chaosnet TELNET connections, just like `SYSTEM:INTERNET-LOGIN-MESSAGE.TXT` is printed on new TCP TELNET connections.
+
+The content of `SYSTEM:MONNAM.TXT`, if existing, up to the first non-[A-Za-z0-9_-] character is used as system name in `STATUS` replies (to allow for a FQDN as host name while keeping those replies brief). *Remark*: another option would be to use all of MONNAM.TXT in STATUS replies, similar to how LISPMs use their pretty-name (which is "human readable" and often longer than the system name). What do you think?
 
 ## What works
 
@@ -143,19 +139,24 @@ Some supplemental documentation for JSYSes with extended functionality:
 
 ## What does not work yet
 
-- Supdup NVTs (Network Virtual Terminals) don't work (but regular TELNET NVTs do work)
+- Supdup NVTs (Network Virtual Terminals) don't work (but regular TELNET NVTs do work, [see here](https://github.com/bictorv/chaosnet-bridge/blob/master/tools/telnet.py) for a Chaosnet TELNET client.).
 - DECnet is disabled for now, so that doesn't work.
-- SDDT isn't updated with new symbols.
+- SDDT isn't updated with new symbols (but otherwise works).
 
 ## What should be done later
 
 - SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
+- Summarise what changes were done to the original.
 
 ### RESOLV
 
 RESOLV should (be able to) use separate DNS servers for IN and CH classes, since CH can often be served by DNS servers which don't provide IN to just anyone  (e.g. `DNS.Chaosnet.NET`), and IN servers in general have no clue about CH.
 
 The **workaround** is to set up your own caching server to handle both IN and CH ([see here](https://chaosnet.net/chaos-dns)).
+
+Another, perhaps more complex, workaround is to use nftables (or perhaps iptables) to reroute DNS queries from TOPS-20 to different DNS servers depending on the class (CH to `DNS.Chaosnet.NET`, IN to your standard server). 
+
+To make this work the TOPS-20 resolver in `<CHAOS.CHIVES>` needed a patch to use new source ports for each request. It is also patched to not insist on authoritative answers.
 
 ## Limitations
 

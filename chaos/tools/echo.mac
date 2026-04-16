@@ -1,0 +1,168 @@
+	title echo
+	search monsym,macsym
+	search chadfs
+	.require sys:macrel
+
+stdac.
+defip.
+
+mxchad:	3405			;default 
+chjfn:	block 1
+cfnam:	block <^d70>/5
+
+ebuf:	block <ebufz==^d488>
+
+;; Stack
+pdl:	block <pdlsiz==^d128>
+
+start:	reset%
+	move p,[iowd pdlsiz,pdl]
+	call getjcl		;get some JCL, the host to stat
+
+mks:	move t1,[point 7,cfnam]
+	move t2,[point 7,[asciz "CHA:"]]
+	do.
+	 ildb t3,t2
+	 jumpe t3,endlp.
+	 idpb t3,t1
+	 loop.
+	od.
+	move t2,mxchad
+	movei t3,^d8
+	nout%
+	 ercal bomb
+	move t2,[point 7,[asciz ".ECHO"]]
+	do.
+	 ildb t3,t2
+	 idpb t3,t1
+	 jumpn t3,top.
+	od.
+gjf:	movx t1,gj%sht
+	hrroi t2,cfnam
+	setz t3,
+	gtjfn%
+	 ercal bomb
+	movem t1,chjfn
+	movx t2,fld(7,of%bsz)!of%rd!of%wr	;Hmm.
+	openf%
+	 ercal bomb
+	movei t4,400*2
+	hrroi t1,[asciz "About to read from you.
+"]
+	psout%
+again:	hrroi t1,[asciz "Echo: "]
+	psout%
+	hrroi t1,ebuf
+	hrrzi t2,ebufz
+	txo t2,rd%bel
+	hrroi t3,[asciz "Echo: "]
+	rdtty
+	 ercal bomb
+
+	hrrzs t2
+	movei p1,ebufz
+	sub p1,t2
+
+	hrroi t1,[asciz "Read "]
+	psout%
+	movx t1,.priou
+	move t2,p1
+	movx t3,fld(^d10,no%rdx)
+	nout%
+	 ercal bomb
+	hrroi t1,[asciz " bytes from you
+"]
+	psout%
+
+	move t1,chjfn
+	hrroi t2,ebuf
+	move t3,p1
+	setz t4,
+	soutr%
+	 ercal bomb
+
+	do.
+	 move t1,chjfn
+	 bin%			; 
+	  ercal [ jumpe t2,again
+		jrst bomb ]
+	 move t1,t2
+	 pbout%
+	  ercal bomb
+	 hrroi t1,[asciz " (x"]
+	 psout%
+	 movx t1,.priou
+	 movx t3,fld(^d16,no%rdx)!fld(2,no%col)!no%zro!no%lfl
+	 nout%
+	  ercal bomb
+	 hrroi t1,[asciz ")
+"]
+	 psout%
+	 sojg p1,top.
+	enddo.
+	jrst again
+
+done:	haltf%
+	jrst done
+
+;; Get JCL
+getjcl:	movei t1,.rsini
+	rscan%
+	 ercal bomb
+	ifn. t1
+	 do.
+	  pbin%
+	  caie t1,.chtab
+	   cain t1,.chspc
+	    loop.
+	  caie t1,.chffd
+	   cain t1,.chlfd
+	    exit.
+	  do.
+	   pbin%
+	   caie t1,.chtab
+	    cain t1,.chspc
+	    ifnsk.
+	     movei t1,.priin
+	     movei t3,8
+	     nin%
+              ifjer.
+;	       hrroi t1,[asciz "Bad host address
+;"]
+;	       esout%
+	       jrst nojcl
+              endif.
+	      movem t2,mxchad
+	      hrroi t1,[asciz "[Connecting to host "]
+	      psout%
+	      movei t1,.priou
+	      movei t3,8
+	      nout%
+	       ercal bomb
+	      hrroi t1,[asciz "]
+"]
+	      psout%
+	      exit.
+	    endif.
+	  caie t1,.chffd
+	   cain t1,.chlfd
+	    exit.
+	  loop.
+         od.
+	od.
+	endif.
+nojcl:	movei t1,.priin
+	cfibf%
+	ret
+
+bomb:	hrroi   1,[asciz "JSYS error: "]
+        esout%
+        movx    1,.priou
+        hrloi   2,.fhslf
+        setz    3,
+        erstr%
+         nop
+         nop
+        haltf%
+
+	end start

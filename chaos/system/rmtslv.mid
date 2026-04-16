@@ -1,0 +1,2208 @@
+	title RMTSLV - server for RMTDEV
+.decsav
+;GZ, July, 1985 - installed
+
+ifndef dbgsw,dbgsw==0
+ifndef logsw,logsw==1
+
+
+define logcal rtn
+ ifn logsw,[skipe logjfn
+	     call rtn
+	   ]
+termin
+
+f=:0
+t=:5
+tt=:6
+a=:7
+b=:10
+c=:11
+d=:12
+n=:13
+v=:14
+w=:15
+
+p=:17
+call=:<pushj p,>
+ret=:<popj p,>
+
+.insrt mid:macsym.mid
+
+;; BV: do I have to recompile MIDAS to get these from MONSYM?
+ifndef .chnph,[
+.chnph==:0
+.chnsn==:1
+.chnns==:2
+sc%cha==bit(34.)
+chanm%=:<jsys 460>
+]
+
+f%out==:bit(0)			;File open for output
+f%wov==:bit(1)			;Write-over mode
+f%nlk==:bit(2)			;Don't follow links (we take it as gj%phy)
+f%nrf==:bit(3)			;Do not set reference date
+f%rwt==:bit(4)			;Restricted write
+f%eofi==:bit(5)			;Have hit end of input file
+f%delw==:bit(6)			;DELWO done, do cz%abt for good measure.
+f%dir==:bit(7)			;This open is really a directory listing
+f%top==:bit(10)			;We are running in our own job
+f%cls==:bit(11)			;The file has been secretly closed
+f%f1==:bit(12)			;Random local flag
+
+.insrt mid:chsdef.mid
+;Additional opcodes
+%colst==:210			;End of file opcode
+ifn dbgsw,%comnd==:%codat
+.else %comnd==:220			;Command
+%corpl==:221			;Reply
+%coasy==:222			;Asynch error
+
+$cpkdt==:441000,,%cpkdt
+
+$cseqn==:143000,,%cpkdt		;Sequence number (including opcode)
+$ccode==:141000,,%cpkdt		;Just opcode
+$cdata==:141000,,%cpkdt		;Command data ildb pointer
+$rerrc==:041000,,%cpkdt		;Response error code
+$rdata==:041000,,%cpkdt		;Response data ildb pointer
+
+  r.imin==:0
+r.opno==:0			;Output open
+r.opni==:1			;Input open
+r.dirl==:2			;List directory
+r.renm==:3			;Rename
+r.dele==:4			;Delete
+r.expu==:5			;Expunge
+r.crdi==:6			;Create directory
+r.mlnk==:7			;Make link
+r.reu==:10			;Reuse
+  r.imax==:10			;End of initial commands
+  r.cmin==:20			;Start of non-initial commands
+r.cls==:20			;Close
+r.alc==:21			;Input allocation
+r.acc==:22			;Access
+r.rnmw==:23			;Rename while open
+r.delw==:24			;Delete while open
+r.srd==:25			;Set reference date
+r.sfd==:26			;Set file write date
+r.saut==:27			;Set file author
+r.rsts==:30			;Read file status
+ r.cmax==:30
+
+ifn dbgsw,chnl==:",
+.else chnl==:200\^M			;Chaosnet newline character
+
+.scalar pdl(pdllen=:100)
+
+.scalar fhostn			;Foreign host number
+.scalar fhost(hostln==:100)	;Foreign host name, short form
+.scalar lhost(hostln)		;Local host name, short form
+.scalar fuser(10)		;Foreign user name
+
+.scalar netjfn,chpkt(%cpmxw)	;Net stuff
+
+.scalar filjfn			;The file
+.scalar filpos			;File position if f%cls
+.scalar filsiz,filbsz,filbln,fildat,filref,filaut(10)	;Assorted file info
+.scalar bytsiz			;Byte size of open
+.scalar buf(320)		;Buffer for image mode conversions
+.scalar bufptr			;Pointer into buffer for SIN/SOUT.
+.scalar wdlen			;Number of bits in each file word (e.g. 35 for
+				;bytsiz=7)
+.scalar savcnt			;Number of bits saved for image mode conversion
+				;They're stored in first word of buf.
+.scalar allocn			;Input allocation
+
+.scalar tnxnam(tnxlen==:200)		;Tops-20 version of the filename.
+
+ifn logsw,[
+	.scalar logjfn
+lognam: asciz "PS:<SYSTEM>RMTSLV.LOG"
+;	asciz "PS:<GZ>RMTSLV.LOG"
+]
+
+begin:	RESET%
+	move p,[-pdllen,,pdl-1]
+	setz f,
+	call enable
+	movx 1,gj%sht\gj%old
+	hrroi 2,[asciz "CHA:.RMTDEV"]
+	GTJFN%
+	 jrst die
+	movem 1,netjfn
+	movx 2,fld(8,of%bsz)\of%rd\of%wr
+	OPENF%
+	 jrst [move 1,netjfn
+	       RLJFN%
+		nop
+	       jrst die]
+	movei 2,.mopkr		;Get rfc packet
+	movei 3,chpkt
+	MTOPR%
+	 erjmp neterr
+	movei 2,.moopn		;Send an open so he can get going while
+	MTOPR%			;we initialize
+	 erjmp neterr
+
+	setzm lhost		;No local host until we need it
+
+	GJINF%			;See if running in our own job
+	ife. 1
+	  txo f,f%top		;Yes
+	  move 1,[sixbit/RMTDEV/]	;Tell the world who we are
+	  SETNM%
+	   ernop
+	endif.
+
+	call ghost		;Get foreign host name
+	move w,[$cpkdt+chpkt]	;Get foreign user name from RFC packet
+	ldb v,[$cpknb chpkt]	;"RMTDEV<sp>username"
+	do.
+	  sojl v,endlp.
+	  ildb 1,w
+	  caie 1,.chspc
+	   loop.
+	enddo.
+	call guser
+
+	movx 1,rc%emo		;Get info on ANONYMOUS, for access checking
+	hrroi 2,[asciz "ANONYMOUS"]
+	RCUSR%
+	txne 1,rc%nom\rc%amb\rc%nmd
+	 fatal
+	movem 3,anonun
+	movx 1,rc%emo
+	move 2,anonun
+	RCDIR%
+	txne 1,rc%nom\rc%amb\rc%nmd
+	 fatal
+	movem 3,anonud
+
+	ifn logsw,call logini
+
+;Main command loop
+getcmd:	setzm filjfn		;No file yet
+	call rcvpkt		;Get packet
+	caie 1,r.cls		;Shouldn't happen, but what the hell
+	ifskp.
+	  call nulrpl
+	  jrst getcmd
+	endif.
+	cail 1,r.imin
+	 caile 1,r.imax
+	  fatal
+	call @idisp-r.imin(1)	;Do the command
+	skipn 1,filjfn		;Clean up a bit afterwards
+	ifskp.
+	  RLJFN%
+	   nop
+	  setzm filjfn
+	endif.
+	movei n,2*20.		;Wait 20 secs for a reuse command
+	do.
+	  sojl n,neterr		;Time out...
+	  move 1,netjfn
+	  GDSTS%
+	  trne 3,-1		;Any packets waiting?
+	   jrst getcmd		;Yea, go do it
+	  andi 2,17
+	  caie 2,%csopn
+	   jrst neterr
+	  movx 1,500.
+	  DISMS%
+	  loop.
+	enddo.
+
+idisp:	 offset r.imin-.
+r.opno:: openo
+r.opni:: openi
+r.dirl:: direc
+r.renm:: renam
+r.dele:: delet
+r.expu:: expng
+r.crdi:: credir
+r.mlnk:: mlink
+r.reu::	 reuse
+	 r.imax==:.-1
+	 offset 0
+
+
+;Various one-shot initial commands
+
+reuse:	call guser		;Get new username from reuse packet
+	callret nulrpl
+
+credir:
+mlink:	movei a,%ebddv		;WRONG TYPE DEVICE
+	callret snderr
+
+delet:	call rfile		;Get filename
+	jumpg v,argerr
+	movx 1,gj%sht\gj%old
+	hrroi 2,tnxnam
+	GTJFN%
+	 jrst itserr
+	hrrzm 1,filjfn
+	movei 2,.ckawr		;Need write access to file
+	call chkjfn
+	jumpe 1,accerr
+	call gfname		;Get truename
+	move 1,filjfn		;Do it to it
+	DELF%
+	 jrst itserr
+	setzm filjfn
+	move w,[$rdata+chpkt]
+	call wfile		;Return truename
+	callret sndrpl		;Send the reply
+
+renam:	call rfile		;Get source file
+	jumple v,argerr
+	movx 1,gj%sht\gj%old
+	hrroi 2,tnxnam
+	GTJFN%
+	 jrst itserr
+	hrrzm 1,filjfn
+	movei 2,.ckawr		;Need write access to delete it
+	call chkjfn
+	jumpe 1,accerr
+	call rfile		;Get target filename
+	jumpg v,argerr
+	movx 1,gj%new
+	hrroi 2,tnxnam
+	call defjfn		;GTJFN defaulting from filjfn
+	 jrst itserr
+	move A,1
+	movei 2,.ckacf		;Need to be able to create new files in target
+	call chkjfn
+	jumpe 1,accerr
+	call .rnamf
+	 jrst itserr
+	move 1,filjfn		;Record who did it
+	hrli 1,.sflwr
+	hrroi 2,fuser
+	call .sfust
+	call gfname
+	move w,[$rdata+chpkt]
+	call wfile
+	callret sndrpl
+
+expng:	call rfile
+	jumpg v,argerr
+	movx 1,rc%emo
+	hrroi 2,tnxnam
+	RCDIR%
+	 erjmp jsyser
+	ifxn. 1,rc%nom\rc%amb
+	  movei a,%ensdr
+	  callret snderr
+	endif.
+	move A,3
+	move 1,A
+	movei 2,.ckacn		;Must have connect access to the dir
+	call chkdir
+	jumpe 1,accerr
+	setz 1,
+	move 2,A
+	DELDF%
+	 erjmp jsyser
+	callret nulrpl
+
+;(Maybe should consider dir;.file. (dir) name name name, i.e.
+;don't require exactly two filenames.  This in rmtdev of course, not here)
+direc:	txz f,f%out\f%wov
+	txo f,f%dir
+	call rdec
+	  jrst snderr
+	movem 1,allocn
+	jumple v,argerr
+	call rfile
+	jumpg v,argerr
+;In the future should do a wild gtjfn to allow arbitrary filespecs
+	movx 1,rc%emo
+	hrroi 2,tnxnam
+	RCDIR%
+	 erjmp jsyser
+	ifxn. 1,rc%nom\rc%amb
+	  movei a,%ensdr
+	  callret snderr
+	endif.
+	move A,3
+	move 1,A
+	movei 2,.ckadr		;Must have read access to directory
+	call chkdir
+	jumpe 1,accerr
+	movei 1,dirgjb
+	hrroi 2,tnxnam
+	GTJFN%
+	 jrst itserr
+	movem 1,filjfn
+	movei 1,7
+	movem 1,bytsiz
+	movem 1,filbsz
+	movem 1,filbln
+	setom filsiz
+	setzm fildat		;Dir file creation date?
+	setzm filref		;Last login date?
+	setzm filaut		;Creator of directory file
+	hrroi 1,tnxnam
+	move 2,filjfn
+	movx 3,fld(.jsaof,js%dev)\fld(.jsaof,js%dir)\js%paf
+	JFNS%
+	skipn lhost
+	 call glhost		;Get local host name, short form
+	move w,[440700,,dirbuf]	;Initialize buffer
+	movei 1,lhost
+	call wstr
+	movei 1,":
+	idpb 1,w
+	call wfile
+	movei 1,[asciz "
+"]
+	call wstr
+	call wdirhd		;Write header, assumes A/directory #
+	move 1,w
+	lsh 1,-30.
+	idivi 1,7
+	movei w,1-dirbuf(w)
+	imuli w,5
+	sub w,1
+	call dirlin		;Do first line
+	movem w,dirlen
+	setzm dirpos
+	jrst openx		;Send reply and go into command loop
+
+dirgjb:	gj%old\gj%ifg\gj%xtn+.gjall
+	.nulio,,.nulio
+	0
+	0
+	-1,,[asciz "*"]
+	-1,,[asciz "*"]
+	0
+	0
+	0
+	g1%iin
+
+wdirhd:	push p,w
+	movei 1,[asciz "Used pages "]
+	call wstr
+	move 1,A		;Directory #
+	GTDAL%
+	push p,3		;Save permanent
+	move 1,2		;Used
+	call wdec
+	movei 1,"/
+	idpb 1,w
+	pop p,1
+	tlnn 1,400000		;What the system considers infinite
+	 tlnn 1,200000		; (See CKLIQ in JSYSF.MAC)
+	ifskp.
+	  movei 1,[asciz "Inf"]
+	  call wstr
+	else.
+	  call wdec
+	endif.
+	movei 1,.chspc
+	idpb 1,w
+	pop p,1
+	setz 2,			;Figure out padding
+	do.
+	  camn 1,w
+	   exit.
+	  ibp 1
+	  aoja 2,top.
+	enddo.
+	movei 3,.chspc
+	do.
+	  cail 2,dflen+6
+	    exit.
+	  idpb 3,w
+	  aoja 2,top.
+	enddo.
+
+	move 1,w
+	hrrz 2,filjfn
+	movx 3,fld(.jsaof,js%dev)\js%paf
+	JFNS%
+	move w,1
+	movei 1,[asciz " free pages "]
+	call wstr
+	hlr 1,A
+	hrli 1,.dvdes
+	GDSKC%
+	push p,1		;Used
+	push p,2		;Available
+	move 1,2
+	call wdec
+	movei 1,"/
+	idpb 1,w
+	move 1,(p)
+	add 1,-1(p)
+	call wdec
+	movei 1,[asciz " ("]
+	call wstr
+	pop p,2
+	pop p,1
+	add 2,1
+	imuli 1,1000.
+	idiv 1,2
+	idivi 1,10.
+	push p,2
+	call wdec
+	movei 2,".
+	idpb 2,w
+	pop p,2
+	addi 2,"0
+	idpb 2,w
+	movei 1,[asciz "% full)
+"]
+	callret wstr
+
+	.scalar dirpos,dirlen
+dirsin:	move 1,dirpos
+	adjbp 1,[440700,,dirbuf]
+	do.
+	  aos 4,dirpos
+	  camle 4,dirlen
+	   exit.
+	  ildb 4,1
+	  skipe 2
+	   idpb 4,2
+	  aojl 3,top.
+	  ret
+	enddo.
+	sos dirpos
+	move 1,filjfn
+	GNJFN%
+	 jrst cret
+	push p,3
+	push p,2
+	push p,w
+	move w,dirpos
+	call dirlin		;Make a new line
+	movem w,dirlen
+	pop p,w
+	pop p,2
+	pop p,3
+	jrst dirsin
+
+dirsfp:	camle 2,dirlen
+	ifskp.
+	  movem 2,dirpos
+	  retskp
+	endif.
+	push p,dirpos
+	move 3,dirlen
+	movem 3,dirpos
+	sub 3,2
+	setz 2,
+	call dirsin
+	pop p,2			;Old dirpos
+	jumpe 3,rskp
+	movem 2,dirpos		;Lost,don't change anything
+	cain 1,gnjfx1
+	 movei 1,sfptx3
+	ret
+
+;Make a directory listing line for current file.  W/current pos.
+dflen==:26.			;Filename field length
+	.scalar fdb(.fblen)
+
+dirlin:	hrrz 1,filjfn
+	movei 2,.ckadl
+	call chkjfn
+	jumpe 1,cret
+	hrrz 1,filjfn
+	movsi 2,.fblen
+	movei 3,fdb
+	GTFDB%
+	 erjmp cret
+	adjbp w,[440700,,dirbuf]
+	move 1,fdb+.fbctl
+;Column 0: space
+	movei 2,.chspc
+	idpb 2,W
+;Column 1: I(nvisible)
+	movei 2,.chspc
+	txne 1,fb%inv
+	  movei 2,"I
+	idpb 2,w
+;Column 2: @ if undeletable (@ is what lispms use)
+	movei 2,.chspc
+	txne 1,fb%ndl
+	 movei 2,"@
+	idpb 2,w
+;Column 3: O(ffline) or A(rchive&offline) or a(rchive)
+	movei 2,.chspc
+	txne 1,fb%off
+	  movei 2,"O
+	ifxn. 1,fb%arc
+	  movei 2,"A
+	  txnn 1,fb%off
+	    movei 2,"a
+	endif.
+	idpb 2,w
+;Column 4: * if bad blocks
+	movei 2,.chspc
+	txne 1,fb%bat
+	 movei 2,"*
+	idpb 2,w
+;Column 5: space
+	movei 2,.chspc
+	idpb 2,w
+;Column 6: filename
+	move 1,w
+	hrrz 2,filjfn
+	movx 3,fld(.jsaof,js%nam)
+	JFNS%
+	move 4,w
+	movei 3,6.		;Make name least 6 chars
+	do.
+	  camn 4,1
+	   exit.
+	  ildb 2,4
+	  caige 2,.chspc	;Count two for random controls, just for fun
+	   cain 2,"
+	    cain 2,177
+	     soj 3,
+	  sojg 3,top.
+	enddo.
+	movei 2,.chspc
+	idpb 2,1
+	 sojge 3,.-1
+	hrrz 2,filjfn
+	movx 3,fld(.jsaof,js%typ)
+	JFNS%
+	move 4,w		;Make first two names at least 13 and
+	movei 3,13.		;replace ^V with ^Q
+	do.
+	  camn 4,1
+	   exit.
+	  ildb 2,4
+	  caige 2,.chspc	;Count two for random controls, just for fun
+	   cain 2,"
+	    cain 2,177
+	     soj 3,
+	  caie 2,^V
+	   soja 3,top.
+	  movei 2,^Q
+	  dpb 2,4
+	  soj 3,		;Be careful not to convert a quoted ^V
+	  camn 4,1
+	   exit.
+	  ildb 2,4
+	  caige 2,.chspc
+	   cain 2,"
+	    cain 2,177
+	     soj 3,
+	  soja 3,top.
+	enddo.
+	movei 2,.chspc
+	idpb 2,1
+	 sojge 3,.-1
+	hrrz 2,filjfn
+	movx 3,fld(.jsaof,js%gen)
+	JFNS%
+	movei 3,.chspc
+	idpb 3,1
+	idpb 3,1
+	setz 2,			;Figure out padding
+	do.
+	  camn w,1
+	   exit.
+	  ildb 3,w
+	  caige 3,.chspc	;Count two for random controls, just for fun
+	   cain 3,"
+	    cain 3,177
+	     aoj 2,
+	  aoja 2,top.
+	enddo.
+	movei 3,.chspc
+	do.
+	  cail 2,dflen
+	    exit.
+	  idpb 3,w
+	  aoja 2,top.
+	enddo.
+	move 1,fdb+.fbctl
+	ifxn. 1,fb%off
+	  movei 1,[asciz "Tape #"]
+	  call wstr
+	  move 1,fdb+.fbtp1
+	  call wsix
+	  movei 1,[asciz ", #"]
+	  call wstr
+	  move 1,fdb+.fbtp2
+	  call wsix
+	  movei 2,.chspc ? idpb 2,w ? idpb 2,w
+	  jrst dirdat
+	endif.
+	ifxn. 1,fb%dir
+	  movei 1,[asciz "Directory "]
+	  call wstr
+	  movei 2,.chspc
+	  jrst dirdat
+	endif.
+	hrrz 1,filjfn
+	SIZEF%
+	ifskp.
+	  move 1,w
+	  move 2,3
+	  movx 3,no%lfl\no%oov\fld(3,no%col)\fld(10.,no%rdx)
+	  NOUT%
+	   nop
+	  move w,1
+	else.
+	  movei 2,"-
+	  idpb 2,w
+	  idpb 2,w
+	  idpb 2,w
+	endif.
+	movei 2,.chspc
+	idpb 2,w
+	hlrz 1,fdb+.fbcnt	;Number of writes
+	hrrz 3,fdb+.fbbk0	;Number of writes according to dumper
+	came 1,3
+	 movei 2,"!
+	idpb 2,w
+	move 1,fdb+.fbbbt
+	movei 2,.chspc
+	txne 1,ar%nar\ar%exm	;Resist or exempt?
+	 movei 2,"$
+dirdat:	idpb 2,w
+	move 2,fdb+.fbwrt
+	move 1,fdb+.fbctl
+	txne 1,fb%off
+	  move 2,fdb+.fbtdt
+	ifg. 2
+	  move 1,w
+	  movx 3,ot%nmn\ot%dam\ot%sla ;ot%scl
+	  ODTIM%
+	  move w,1
+	else.
+	  movei 2,"-
+	  idpb 2,w
+	  idpb 2,w
+	  idpb 2,w
+	endif.
+	movei 2,^M
+	idpb 2,w
+	movei 2,^J
+	idpb 2,w
+	move 1,w
+	lsh 1,-30.
+	idivi 1,7
+	movei w,-dirbuf+1(w)
+	imuli w,5
+	sub w,1
+	ret
+
+openi:	txza f,f%out
+openo:	 txo f,f%out
+	call rdec		;Read byte size
+	 jrst snderr
+	caile 1,0
+	 caile 1,36.
+	  jrst [movei a,%ensmd
+	        callret snderr]
+	movem 1,bytsiz
+	call roopt		;Read open options (f%nrf,%nlk,%rwt,%wov)
+	 jrst snderr
+	txnn f,f%out
+	 txnn f,f%wov
+	ifskp.			;Can't be write-over mode for openi
+	  movei a,%esco
+	  callret snderr
+	endif.
+	call rdec		;Read initial allocation
+	 jrst snderr
+	movem 1,allocn
+	jumple v,argerr
+	call rfile		;Read filename
+	jumpg v,argerr
+	movx 1,gj%sht\gj%new\gj%fou
+	txne f,f%out
+	 txne f,f%wov
+	  movx 1,gj%sht\gj%old
+	txne f,f%nlk
+	 txo 1,gj%phy
+	hrroi 2,tnxnam
+	GTJFN%
+	 jrst itserr
+	movem 1,filjfn
+	movei 2,.ckacf
+	txne f,f%out
+	 txne f,f%wov
+	  movei 2,.ckard
+	call chkjfn
+	jumpe 1,accerr
+	ifxn. f,f%wov		;If write-over
+	  move 1,filjfn		;need write access as well
+	  movei 2,.ckawr
+	  call chkjfn
+	  jumpe 1,accerr
+	endif.
+	move 1,filjfn
+	movx 2,of%rd
+	txne f,f%out
+	 movx 2,of%wr
+	txne f,f%wov
+	 movx 2,of%rd\of%wr
+	txne f,f%nrf
+	 txo 2,of%pdt
+	txne f,f%rwt
+	 txo 2,of%rtd
+	move 3,bytsiz
+	dpb 3,[.bp of%bsz,2]
+	OPENF%
+	 jrst itserr
+	ifxn. f,f%out
+	  move 1,filjfn
+	  hrli 1,.sflwr
+	  hrroi 2,fuser
+	  call .sfust
+	andxe. f,f%wov
+	  move 1,filjfn
+	  hrli 1,.sfaut
+	  hrroi 2,fuser
+	  call .sfust
+	endif.
+	call gfsts		;Get file info
+	skipl filsiz		;If file size not known, find out the
+	ifskp.			;hard way
+	  move 1,filjfn
+	  seto 2,
+	  SFPTR%
+	annje.
+	  RFPTR%
+	   erskp
+	    movem 2,filsiz
+	  move 1,filjfn
+	  setz 2,
+	  SFPTR%
+	   jfatal
+	endif.
+openx:	move w,[$rdata+chpkt]
+	call wsts
+	call sndrpl
+	ifxn. f,f%out
+	 call disable		;Disable so don't get around quota restrictions
+	 setzm allocn		;Don't try to send data if openo
+	endif.
+	movei 1,36.		;Get number of used bits per word
+	idiv 1,bytsiz
+	imul 1,bytsiz
+	movem 1,wdlen
+	move 1,bytsiz		;Construct byte pointer for SIN%/SOUT%
+	lsh 1,30
+	tlo 1,440000
+	hrri 1,buf
+	txnn f,f%out		;On input, don't overwrite first word, which
+	 hrri 1,buf+1		; contains saved byte from last time
+	setz 2,
+	adjbp 2,1
+	movem 2,bufptr
+	setzm savcnt		;Nothing saved from last time
+	txz f,f%eofi\f%cls	;Not end of file yet, not closed
+	do.
+	  move 1,netjfn
+	  GDSTS%
+	  hrrz n,3
+	  ifg. n
+	    do.
+	      call rcvpkt
+	      call docmd
+	      skipn filjfn	;Flushed file?
+		ret		;Yes, done.
+ 	      sojg n,top.
+	    enddo.
+	    loop.
+	  endif.
+	  andi 2,17		;No input for us, make sure connection still
+	  caie 2,%csopn		;open.
+	   jrst neterr
+	  skiple v,allocn	;Can we send anything?
+	   txne f,f%eofi
+	  ifskp.
+	    tlnn 3,-1		;Room for it?
+	  anskp.
+	    call cwdata		;Send a data packet
+	    loop.
+	  endif.
+;Should sleep a long time and have interrupts wake us up..
+	  movx 1,500.		;No input, nothing to send
+	  DISMS%		;Wait half a second and check again
+	  loop.
+	enddo.
+
+docmd:	jumpl 1,crdata
+	cail 1,r.cmin
+	 caile 1,r.cmax
+	  fatal
+	callret @cdisp-r.cmin(1)
+
+cdisp:	 offset r.cmin-.
+r.cls::	 cclose
+r.alc::	 calloc
+r.acc::	 cacces
+r.rnmw:: crnmwo
+r.delw:: cdelwo
+r.srd::	 csrdat
+r.sfd::  csfdat
+r.saut:: csaut
+r.rsts:: crsts
+	 r.cmax==:.-1
+	 offset 0
+
+;Non-initial subcommands
+cclose:	call enable		;Minimize chances for failure...
+	hrrz 1,filjfn
+	ifxn. f,f%dir
+	  txnn f,f%eofi		;If eofi, already released
+	    RLJFN%
+	     nop
+	  jrst ccloze
+	endif.
+	ifxn. f,f%cls
+	  RLJFN%
+	   nop
+	  jrst ccloze
+	endif.
+	txne f,f%delw
+	 hrli 1,(cz%abt)
+	CLOSF%
+	 abskp
+	  jrst ccloze
+	ifxn. f,f%out
+	  call disable
+	  callret itserr
+	endif.
+	move 1,filjfn		;Input close, ignore error
+	hrli 1,(cz%abt)
+	CLOSF%
+	 nop
+ccloze:	setzm filjfn
+	callret nulrpl
+
+calloc:	call rdec
+	 fatal
+	addm 1,allocn
+	ret
+
+cacces:	call rdec
+	 jrst snderr
+	move A,1
+	call rdec
+	 jrst snderr
+	move B,1
+	jumpg v,argerr
+	txze f,f%cls
+	 call reopen
+	move 1,filjfn
+	move 2,A
+	ifxn. f,f%dir
+	  call dirsfp
+	   jrst itserr
+	else.
+	  SFPTR%
+	   jrst itserr
+	endif.
+	txnn f,f%out
+	 movem B,allocn
+	setzm savcnt
+	callret nulrpl
+
+	.scalar rnmnam(tnxlen)
+crnmwo:	jxn f,f%dir,wtderr
+	call rfile
+	jumpg v,argerr
+	ifxe. f,f%out
+	  move 1,filjfn
+	  movei 2,.ckawr
+	  call chkjfn
+	  jumpe 1,accerr
+	endif.
+	hrroi 1,rnmnam
+	hrroi 2,tnxnam
+	STCMP%
+	ifn. 1
+	  call setena
+	  setzm rnmnam
+	  movx 1,gj%new\gj%fou\.gjnhg
+	  hrroi 2,tnxnam
+	  call defjfn		;Do GTJFN defaulting from filjfn
+	   jrst itserr
+	  move A,1
+	  movei 2,.ckacf
+	  call chkjfn
+	  jumpe 1,[move 1,A
+		   RLJFN%
+		    nop
+		   callret accerr]
+	  ifxe. f,f%cls
+	    move 1,filjfn
+	    RFPTR%
+	     seto 2,
+	    movem 2,filpos
+	    hrli 1,(co%nrj)
+	    CLOSF%
+	     jrst [exch 1,A
+		   RLJFN%
+		    nop
+		   move 1,A
+		   callret itserr]
+	    txo f,f%cls
+	  endif.
+	  call .rnamf		;Rename from filjfn to A
+	   jrst itserr
+	endif.
+	move 1,[tnxnam,,rnmnam]
+	blt 1,rnmnam+tnxlen-1
+	call gfname
+	move w,[$rdata+chpkt]
+	call wfile
+	callret sndrpl
+
+cdelwo:	jxn f,f%dir,wtderr
+	jumpg v,argerr
+	ifxe. f,f%out
+	  move 1,filjfn
+	  movei 2,.ckawr
+	  call chkjfn
+	  jumpe 1,accerr
+	endif.
+	call setena
+	move 1,filjfn
+	DELF%
+	 jrst itserr
+	txo f,f%delw
+	callret nulrpl
+
+;Protection checking is too hairy...
+csrdat:
+csfdat:
+csaut:	
+wtderr:	movei a,%ebddv
+	callret snderr
+
+crsts:	jxn f,f%dir,wtderr
+	call gfsts0
+	move w,[$rdata+chpkt]
+	call wsts
+	callret sndrpl
+
+
+ifn dbgsw,[
+define exchm m1,m2
+  move 1,m1
+  exch 1,m2
+  movem 1,m1
+termin
+
+tstimg:	movei 1,7
+	skipn bytsiz
+	 movem 1,bytsiz
+	call enable
+	movx 1,gj%sht+gj%old
+	hrroi 2,tnxnam
+	GTJFN%
+	  ret
+	movem 1,filjfn
+	movx 2,fld(7,of%bsz)\of%rd
+	OPENF%
+	 ret
+	txz f,f%eofi
+	movei 1,44
+	idiv 1,bytsiz
+	imul 1,bytsiz
+	movem 1,wdlen
+	move 1,bytsiz
+	lsh 1,30
+	tlo 1,440000
+	hrri 1,buf+1
+	setz 2,
+	adjbp 2,1
+	movem 2,bufptr
+	push p,[0]
+	push p,[0]
+	push p,[.priou]
+	setzm savcnt
+	do.
+	  movei v,-1
+	  call cwdata		;file to packet
+	  exchm (p),filjfn
+	  exchm -1(p),savcnt
+	  exchm -2(p),buf
+	  sos bufptr
+	  tmsg "{"
+	  ldb v,[$cpknb+chpkt]
+	  imuli v,8
+	  ldb 1,[$cpkop+chpkt]
+	  trz 1,%colst
+	  sub v,1
+	  call crdata		;packet to .priou
+	  exchm (p),filjfn
+	  exchm -1(p),savcnt
+	  exchm -2(p),buf
+	  aos bufptr
+	  tmsg "}"
+	  ldb 1,[$cpkop+chpkt]
+	  caige 1,%colst
+	   loop.
+	enddo.
+	move 1,filjfn
+	CLOSF%
+	  nop
+	tmsg "<EOF>"
+	move a,-1(p)		;savcnt
+	move b,-2(p)
+	ifn. A
+	  tmsg "
+Receiver got (A) extra bits, in B"
+	endif.
+	skipn savcnt
+	ifskp.
+	  tmsg "
+Sender still has (SAVCNT) extra bits, in BUF"
+	endif.
+	tmsg "
+"
+	adjsp p,-3
+	retskp
+]
+
+	;Read V bits from packet to file
+crdata:	add v,savcnt		;Count bits we will re-read from last time
+	move w,wdlen
+	move a,v		;See how many file words we'll get
+	idiv a,w		;a/# complete words, b/#bits in last word
+	setca a,		;-(a+1)
+	hrl a,a
+	hrri a,buf		;A=Aobjn pointer to output (buffer)
+	movei c,chpkt+%cpkdt	;C=pointer to input (packet)
+	move t,w		;T=# bits needed for next output word
+	sub t,savcnt
+	movei tt,32.		;TT=difference in input/output word sizes
+	sub tt,w
+	move 1,buf		;Set up for loop - BUF contains the saved
+	move 2,(c)		;byte from last time, right justified
+	do.
+	  caig t,32.		;Need more than one input word?
+	  ifskp.
+	    lshc 1,32.		;Yes, shift in another one
+	    subi t,32.
+	    aoj c,
+	    move 2,(c)
+	  endif.
+	  lshc 1,(t)		;Shift in needed bits
+	  lsh 1,4(tt)		;Left-justify
+	  movem 1,(a)
+	  aobjp a,endlp.
+	  sub t,tt		;Need this much now
+	  ifle. t		;If don't need any, means have enough
+	    movem 2,(a)		; for another output word as is.
+	    aobjp a,endlp.
+	    add t,w		;Account for what we just output
+	  endif.
+	  dmove 1,(c)
+	  lsh 1,-4
+	  aoja c,top.
+	enddo.
+	move a,-1(a)		;Get last, partial word
+	lsh a,-36.(b)		;Right justify the valid data
+	idiv v,bytsiz		;v/# complete bytes, w/# bits left over
+	movem w,savcnt
+	ifg. v
+	  txze f,f%cls
+	   call reopen
+	  move 1,filjfn		;Save out the complete bytes
+	  move 2,bufptr
+	  movn 3,v
+	  SOUT%
+	   erjmp [movei a,3	;Assume NON-RECOVERABLE DATA ERROR
+		  movei 1,.fhslf	;Unless over quota
+		  GETER%
+		  movei 2,(2)
+		  caie 2,iox34
+		   cain 2,iox11
+	            movei a,11	;then use DEVICE FULL
+		  jrst iocerr]
+	endif.
+	movem a,buf		;Save left-over bits for next time
+	ret
+
+	;Output at most V bits from file to net
+cwdata:	caile v,%cpmxc*8	;Not more than a packet worth
+	 movei v,%cpmxc*8
+	movei a,-1(v)		;See how many bytes we need to read from file
+	sub a,savcnt		;Don't need to read what we have buffered up
+	add a,bytsiz
+	idiv a,bytsiz		;A=# bytes to read (V-savcnt=A*bsz-(bsz-1-B))
+	setca b,		;-(b+1)
+	add b,bytsiz		;B=# bits in last byte which won't be used
+	move 1,filjfn		;Read it in
+	move 2,bufptr
+	movn 3,a
+	ifn. 3
+	  txze f,f%cls
+	   call reopen
+	  txne f,f%dir
+	   call dirsin
+	  txnn f,f%dir
+	   SIN%
+	endif.
+	ldb c,2			;C=last byte
+	ifl. 3			;Didn't read everything?
+	  movei 1,.fhslf
+	  GETER%
+	  movei 1,(2)
+	  caie 1,iox4		;EOF?
+	   cain 1,gnjfx1
+	  ifskp.
+	    movei a,3		;No, non-recoverable data error
+	    jrst iocerr
+	  endif.
+	  txo f,f%eofi		;Else remember hit eof
+	  add a,3
+	  move v,a		;V=# bits to send
+	  imul v,bytsiz
+	  add v,savcnt
+	  setz b,		;We're gonna send all the bits in buffer
+	endif.
+	movn 1,v		;Account for what we're about to send
+	addm 1,allocn
+	movei 1,7(v)		;Now do the conversion
+	idivi 1,8
+	dpb 1,[$cpknb+chpkt]
+	movei 1,%codat+7
+	sub 1,2
+	txne f,f%eofi
+	 txo 1,%colst
+	dpb 1,[$cpkop+chpkt]
+	movei 1,31.(v)
+	idivi 1,32.
+	movns 1
+	hrl a,1
+	hrri a,chpkt+%cpkdt	;A=abojn output (packet) pointer
+	movei T,32.		;T=# bits needed for next output word
+	sub T,savcnt
+	move w,wdlen
+	move tt,w		;TT=difference in input/output word sizes
+	subi tt,32.
+	movem b,savcnt		;This is what's going to be left over
+	movei b,buf		;B=input (packet) pointer
+	do.
+	  dmove 1,(b)
+	  lsh 1,-4(tt)		;Right justify first word
+	  camg t,w		;Do we need more then a word's worth?
+	  ifskp.
+	    lshc 1,(w)		;Yes, shift it in
+	    sub t,w
+	    aoj b,
+	    move 2,1(b)
+	  endif.
+	  lshc 1,4(t)		;Shift in the needed bits & left-justify
+	  movem 1,(a)
+	  aobjp a,endlp.
+	  ifle. t		;If don't need any more, means have another
+	    lshc 1,-4		;output word ready as is.
+	    movem 2,(a)
+	    aobjp a,endlp.
+	    addi t,32.
+	  endif.
+	  sub t,tt
+	  aoja b,top.
+	enddo.
+	dpb c,bufptr		;Save last byte
+ife dbgsw,[
+	move 1,netjfn
+	movei 2,.mopks
+	movei 3,chpkt
+	MTOPR%
+	 erjmp neterr
+]
+	ret
+
+;Receive a packet from net.
+;Returns with 1/opcode or -1 if it was a data packet.
+rcvpkt:	move 1,netjfn
+	movei 2,.mopkr
+	movei 3,chpkt
+	MTOPR%
+	 erjmp neterr
+	ldb 1,[$cpkop chpkt]
+	caie 1,%cocls
+	 cain 1,%colos
+	  jrst neterr
+	caie 1,%comnd
+	ifskp.
+	  ldb 1,[$ccode chpkt]
+	  ldb v,[$cpknb chpkt]
+	  subi v,3
+	  skipge v
+	   fatal
+	  move w,[$cdata chpkt]
+	  logcal logrcc
+	  ret
+	endif.
+	cail 1,%codat
+	 caile 1,%colst+7
+	  fatal
+	skipe filjfn
+	 txnn f,f%out
+	  fatal
+	trz 1,%colst
+	ldb v,[$cpknb chpkt]
+	imuli v,8.
+	sub v,1
+	seto 1,
+	logcal logrcd
+	ret
+
+;RFILE: Read an ITS filename and convert it to a twenex name in TNXNAM.
+rfile:	move 1,[ascptr tnxnam]	;Copy into here
+	tdza T,T
+rfile0:	 idpb 3,1		;Terminate last component
+rfile1:	sosge v
+	 skipa 3,[chnl]
+	  ildb 3,w
+	caie 3,.chspc		;Flush leading whitespace
+	 cain 3,.chtab
+	  jrst rfile1
+	move 2,1		;Save starting position.
+	movei 4,^V		;Now copy the next component with quoting
+	do.
+	  cain 3,chnl
+	   exit.
+	  caie 3,":
+	   cain 3,";
+	    exit.
+	  cail 3,"0
+	   caile 3,"9
+	    cain 3,"-
+	  ifskp.
+	    cail 3,"A
+	     caile 3,"Z
+	      cain 3,"$
+	  anskp.
+	    cail 3,"a
+	     caile 3,"z
+	      cain 3,^Q
+	  anskp.
+	    idpb 4,1
+	  endif.
+	  caie 3,^Q
+	  ifskp.
+	    movei 3,chnl
+	    sojl v,endlp.
+	    ildb 3,w
+	    idpb 4,1
+	  endif.
+	  idpb 3,1
+	  sosge v
+	   skipa 3,[chnl]
+	    ildb 3,w
+	  caie 3,.chtab
+	   cain 3,.chspc
+	    exit.
+	  loop.
+	enddo.
+	caie 3,";		;Directory component?
+	ifskp.
+	  movei 3,".		;Terminate it
+	  jumpl T,rfile0	;First directory component?
+	  seto T,		;Yea
+	  idpb 3,1		;Insert the directory delimiter BEFORE
+	  movei 3,"<		;this field
+	  do.
+	    move 4,3
+	    ildb 3,2
+	    dpb 4,2
+	    came 2,1
+	     loop.
+	  enddo.
+	  jrst rfile0
+	endif.
+	ifl. T			;Else not a dir component, so if was inside
+	  setz T,		;a dir spec, terminate it before this field
+	  movei 4,">
+	  dpb 4,2
+	endif.
+	cain 3,":		;If a device component
+	 jrst rfile0		;Keep going
+	caie T,2		;Doing a version now?
+	ifskp.
+	  move 4,2		;Check for special ITS conventions
+	  ildb tt,4
+	  caie tt,^V
+	anskp.
+	  ildb tt,4
+	  caie tt,"<
+	   cain tt,">
+	    came 4,1
+	anskp.
+	  move 1,2
+	  caie tt,"<		;Convert to TOPS-20 conventions
+	  ifskp.		;(In case of >, could be .0 or .-1.  Leave it
+	    movei 4,"-		;off altogether, twenex defaulting will dtrt).
+	    idpb 4,1
+	    movei 4,"2
+	    idpb 4,1
+	  endif.
+	endif.
+	cain 3,chnl
+	ifskp.			;If anything more, keep going
+	  movei 3,".
+	  cail T,2.		;"Names" after version number
+	   movei 3,";		; are really attributes
+	  aoja T,rfile0
+	endif.
+	setz 3,			;Hit the end, terminate string
+	camn 1,2		;Didn't add anything this time
+	 skipg T		;and last component was a filename?
+	  idpb 3,1		;No, leave its terminator
+	dpb 3,1			;Else clear the "." from filename
+	ret
+
+;WFILE: convert the twenex filename in TNXNAM to ITS-format name.
+wfile:	move 1,[ascptr tnxnam]
+	movei T,.chspc
+	movei 4,^Q
+	do.
+	  ildb 2,1
+	  caie 2,"<
+	  ifskp.
+	    movei T,";
+	    ildb 2,1
+	  endif.
+	  jumpe 2,cret
+	  cain 2,";
+	   exit.
+	  caie 2,">
+	   cain 2,".
+	  ifskp.
+	    caie 2,^V
+	    ifskp.
+	      idpb 4,w
+	      ildb 2,1
+	    endif.
+	    idpb 2,w
+	    loop.
+	  endif.
+	  idpb T,w
+	  cain 2,">
+	   movei T,.chspc
+	  loop.
+	enddo.
+	idpb T,w
+	do.			;Do attributes
+	  ildb 2,1
+	  cain 2,":
+	   idpb 4,w
+	  cain 2,";
+	   movei 2,.chspc
+	  caie 2,^V
+	  ifskp.
+	    idpb 4,w
+	    ildb 2,1
+	  endif.
+	  jumpe 2,cret
+	  idpb 2,w
+	  loop.
+	enddo.
+
+roopt:	txz f,f%nrf\f%nlk\f%rwt\f%wov\f%f1
+	sojl v,rskp
+	ildb 1,w
+	do.
+	  cain 1,chnl
+	   retskp
+	  caie 1,"/
+	   jrst [movei a,%ebdrg
+		 ret]
+	  setz 2,
+	  move 3,[440600,,2]
+	  do.
+	    sojl v,endlp.
+	    ildb 1,w
+	    caie 1,"/
+	     cain 1,chnl
+	      exit.
+	    cail 1,140
+	     subi 1,40
+	    subi 1,40
+	    tlne 3,770000
+	     idpb 1,3
+	    loop.
+	  enddo.
+	  camn 2,[sixbit/NRF/]
+	   txo f,f%nrf\f%f1
+	  camn 2,[sixbit/NLK/]
+	   txo f,f%nlk\f%f1
+	  camn 2,[sixbit/RWT/]
+	   txo f,f%rwt\f%f1
+	  camn 2,[sixbit/WOV/]
+	   txo f,f%wov\f%f1
+	  txzn f,f%f1
+	   jrst [movei a,%ensmd
+		 ret]
+	  jumpge v,top.
+	enddo.
+	retskp
+
+rdec:	seto 1,
+	sojl v,rskp
+	ildb 2,w
+	cain 2,chnl
+	 retskp
+	setz 1,
+	do.
+	  cail 2,"0
+	   caile 2,"9
+	    jrst [movei a,%ebdrg
+		  ret]
+	  imuli 1,10.
+	  addi 1,-"0(2)
+	  sojl v,rskp
+	  ildb 2,w
+	  caie 2,chnl
+	   loop.
+	enddo.
+rskp:	aos (p)
+cret:	ret
+
+wdec:	idivi 1,10.
+	ifn. 1
+	  push p,2
+	  call wdec
+	  pop p,2
+	endif.
+	addi 2,"0
+	idpb 2,w
+	ret
+
+wstr:	hrli 1,(ascptr)
+	do.
+	  ildb 2,1
+	  jumpe 2,cret
+	  idpb 2,w
+	  loop.
+	enddo.
+
+wsix:	do.
+	  setz 2,
+	  rotc 1,6
+	  addi 2,40
+	  idpb 2,w
+	  jumpn 1,top.
+	enddo.
+	ret
+
+wsts:	skipl 1,filsiz
+	 call wdec
+	movei 1,chnl
+	idpb 1,w
+	skiple 1,filbsz
+	 call wdec
+	movei 1,chnl
+	idpb 1,w
+	move 1,filbln
+	skiple filbsz
+	 call wdec
+	movei 1,chnl
+	idpb 1,w
+	skiple 1,fildat
+	 call wdec
+	movei 1,chnl
+	idpb 1,w
+	skiple 1,filref
+	 call wdec
+	movei 1,chnl
+	idpb 1,w
+	hrroi 1,filaut
+	call wstr
+	movei 1,chnl
+	idpb 1,w
+	callret wfile
+
+
+gfsts:	setzm filbsz
+	setzm filbln
+	setom filsiz
+	setzm fildat
+	setzm filref
+	setzm filaut
+gfsts0:	move 1,filjfn
+	move 2,[2,,.fbbyv]
+	movei 3,3
+	GTFDB%
+	ifnje.
+	  ldb 3,[.bp fb%bsz,3]
+	  skipn 3
+	   movei 3,36.
+	  movem 3,filbsz
+	  movem 4,filbln
+	  camn 3,bytsiz		;Same as requested byte size?
+	   movem 4,filsiz	;Yes, then know exact file size
+	endif.
+	move 1,filjfn
+	move 2,[2,,.fbwrt]
+	movei 3,3
+	GTFDB%
+	ifnje.
+	  skipg 1,3
+	  ifskp.
+	    sub 1,[<365.*41.+55.>,,0]	;Adjust to different starting day
+	    muli 1,<24.*60.*60.>	;Convert
+	    lsh 2,1			;Magic
+	    lshc 1,-19.
+	    movem 2,fildat
+	  endif.
+	  skipg 1,4
+	  ifskp.
+	    sub 1,[<365.*41.+55.>,,0]
+	    muli 1,<24.*60.*60.>
+	    lsh 2,1
+	    lshc 1,-19.
+	    movem 2,filref
+	  endif.
+	endif.
+	move 1,filjfn
+	hrli 1,.gflwr
+	hrroi 2,filaut
+	GFUST%
+	 ernop
+gfname:	hrroi 1,tnxnam
+	hrrz 2,filjfn
+	movx 3,js%spc\js%atr
+	JFNS%
+	ret
+
+
+accarg:	0			;.ckaac - desired access
+anonun:	0			;.ckald - user number (anonymous)
+anonud:	0			;.ckacd - connected dir (ps:<anonymous>)
+	0			;.ckaec - enabled caps of user
+cktarg:	0			;.ckaud - dir or file being checked
+jfnacn==:<.-accarg>\ck%jfn
+ckprot:	0			;.ckapr - protection of files if target is dir
+diracn==:.-accarg
+
+chkjfn:	movem 1,cktarg
+	movem 2,accarg
+	movx 1,jfnacn
+	movei 2,accarg
+	CHKAC%
+	 fatal
+	ret
+
+chkdir:	movem 1,cktarg
+	movem 2,accarg
+	setzm ckprot		;Shouldn't matter for dir-related access
+	movx 1,diracn
+	movei 2,accarg
+	CHKAC%
+	 fatal
+	ret
+
+argerr:	movei a,%etmrg
+	skipg v
+	 movei a,%etfrg
+	callret snderr
+
+nulrpl:	tdza a,a
+accerr:	 movei a,%emchn		;DEVICE NOT ASSIGNABLE TO THIS PROCESSOR
+snderr:	skipa w,[$rdata chpkt]
+sndrpl:	 setz a,
+	dpb a,[$rerrc+chpkt]
+	movei 1,1-chpkt-%cpkdt(w)
+	imuli 1,4
+	lsh w,-41
+	sub 1,w
+	movei 2,%corpl
+sndpkt:	dpb 1,[$cpknb+chpkt]
+	dpb 2,[$cpkop+chpkt]
+	logcal logsnd
+	move 1,netjfn
+	movei 2,.mopks
+	movei 3,chpkt
+	MTOPR%
+	 erjmp neterr
+	ret
+
+iocerr:	dpb a,[341000,,%cpkdt+chpkt]
+	logcal logioc
+	movei 1,%coasy
+	movei 2,1.
+	call sndpkt
+	move 1,netjfn
+	movei 2,.monop
+	MTOPR%
+	 ernop
+	jrst die
+
+%ENSDV==:1	;NO SUCH DEVICE
+%ENSIO==:2	;WRONG DIRECTION
+%ETMTR==:3	;TOO MANY TRANSLATIONS
+%ENSFL==:4	;FILE NOT FOUND
+%EFLDR==:5	;DIRECTORY FULL
+%EFLDV==:6	;DEVICE FULL
+%ENRDV==:7	;DEVICE NOT READY
+%ENADV==:10	;DEVICE NOT AVAILABLE
+%EBDFN==:11	;ILLEGAL FILE NAME
+%ENSMD==:12	;MODE NOT AVAILABLE
+%EEXFL==:13	;FILE ALREADY EXISTS
+%EBDCH==:14	;BAD CHANNEL NUMBER
+%ETMRG==:15	;TOO MANY ARGUMENTS (CALL)
+%ENAPK==:16	;PACK NOT MOUNTED
+	       ;17 FORMERLY DIRECTORY NOT AVAIL
+%ENSDR==:20	;NON-EXISTENT DIRECTORY
+%ELCDV==:21	;LOCAL DEVICE ONLY
+%ESCO==: 22	;SELF-CONTRADICTORY OPEN
+%ENAFL==:23	;FILE LOCKED
+%ETMDR==:24	;M.F.D. FULL
+%EMCHN==:25	;DEVICE NOT ASSIGNABLE TO THIS PROCESSOR
+%ERODV==:26	;DEVICE WRITE-LOCKED
+%ETMLK==:27	;LINK DEPTH EXCEEDED
+%ETFRG==:30	;TOO FEW ARGUMENTS (CALL)
+%EROJB==:31	;CAN'T MODIFY JOB
+%EROPG==:32	;CAN'T GET THAT ACCESS TO PAGE
+%EBDRG==:33	;MEANINGLESS ARGS
+%EBDDV==:34	;WRONG TYPE DEVICE
+%ENSJB==:35	;NO SUCH JOB
+%EBOJ==: 36	;VALID CLEAR OR STORED SET
+%ENACR==:37	;NO CORE AVAILABLE
+%ETOP==: 40	;NOT TOP LEVEL
+%ENAPP==:41	;OTHER END OF PIPELINE GONE OR NOT OPEN
+%ENAJB==:42	;JOB GONE OR GOING AWAY
+%ENSCL==:43	;ILLEGAL SYSTEM CALL NAME
+%ENSCH==:44	;CHANNEL NOT OPEN
+%ENRBF==:45	;INPUT BUFFER EMPTY OR OUTPUT BUFFER FULL
+%EBDFL==:46	;UNRECOGNIZABLE FILE (LOAD)
+%EBDLK==:47	;LINK TO NON-EXISTENT FILE
+
+;Convert Twenex error in 1 into ITS error code and send it
+jsyser:	movei 1,.fhslf
+	GETER%
+	movei 1,(2)
+itserr:	movei a,%ebdrg		;default: MEANINGLESS ARGS
+	cail 1,gjfx4		;Random syntax errors
+	 caile 1,gjfx15
+	  cain 1,gjfx30
+	   movei a,%ebdfn	;ILLEGAL FILENAME
+	caie 1,gjfx33
+	 cain 1,gjfx34
+	  movei a,%ebdfn	;ILLEGAL FILENAME
+	cail 1,gjfx40
+	 caile 1,gjfx51
+	  cain 1,gjfx53
+	   movei a,%ebdfn	;ILLEGAL FILENAME
+	caie 1,rcdix2		;Invalid directory spec
+	 cain 1,rcdix3		;Invalid structure name
+	  movei a,%ebdfn	;ILLEGAL FILENAME
+	cain 1,gjfx31		;Invalid wildcard (maybe we should handle it)
+	 movei a,%ebdfn		;ILLEGAL FILENAME
+	cain 1,gjfx16		;No such device
+	 movei a,%ensdv		;NO SUCH DEVICE
+	cain 1,gjfx17		;No such directory name
+	 movei a,%ensdr		;NON-EXISTENT DIRECTORY
+	cail 1,gjfx18		;No such filename,type,generation
+	 caile 1,gjfx21		;File was expunged
+	  cain 1,gjfx24		;File not found
+	   movei a,%ensfl	;FILE NOT FOUND
+	caie 1,gjfx32		;No filenames match this spec
+	 cain 1,gjfx52		;End of tape encountered while searching file
+	  movei a,%ensfl	;FILE NOT FOUND
+	cain 1,rnamx7		;Source file expunged
+	 movei a,%ensfl		;FILE NOT FOUND
+	caie 1,opnx10		;Entire file structure full
+	 cain 1,iox34		;Disk full
+	  movei a,%efldv	;DEVICE FULL
+	caie 1,gjfx23		;Exceeded max number of files per directory
+	 cain 1,iox11		;Quota exceeded
+	  movei a,%efldr	;DIRECTORY FULL
+	caie 1,rnamx4		;Quota exceeded in destination of rename
+	 cain 1,opnx23		;Disk quota exceeded
+	  movei a,%efldr	;DIRECTORY FULL
+	cain 1,gjfx27		;File already exists (new file required)
+	 movei a,%eexfl		;FILE ALREADY EXISTS
+	caie 1,gjfx28		;Device is not on-line
+	 cain 1,opnx8		;Device is not on line
+	  movei a,%enapk	;PACK NOT MOUNTED
+	caie 1,ttyx01		;Line is not active
+	 cain 1,strx09		;Prior structure mount required
+	  movei a,%enapk	;PACK NOT MOUNTED
+	caie 1,desx10		;Structure is dismounted
+	 cain 1,strx01		;Structure is not mounted
+	  movei a,%enapk	;PACK NOT MOUNTED
+	cain 1,gjfx39		;Logical name loop detected
+	 movei a,%etmtr		;TOO MANY TRANSLATIONS
+	cain 1,opnx31		;File is offline
+	 movei a,%ebdlk		;LINK TO NON-EXISTENT FILE
+	cain 1,opnx25		;Device is write locked
+	 movei a,%erodv		;DEVICE WRITE-LOCKED
+	caie 1,opnx9		;Invalid simulataneous access
+	 cain 1,opnx13		;Invalid access requested (thaw/frozen I think)
+	  movei a,%enafl	;FILE LOCKED
+	cain 1,delx13		;File is marked "Never delete"
+	 movei a,%enafl		;FILE LOCKED
+	cail 1,opnx3		;Read/write/execute/append access required
+	 caile 1,opnx6
+	  cain 1,opnx12		;List access required
+	   movei a,%emchn	;DEVICE NOT ASSIGNABLE TO THIS PROCESSOR
+	caie 1,opnx7		;Device already assigned to another job
+	 cain 1,gjfx35		;Directory access privs required
+	  movei a,%emchn	;DEVICE NOT ASSIGNABLE TO THIS PROCESSOR
+	caie 1,delfx1		;Delete access required
+	 cain 1,opnx15		;Read/write access required (? maybe %ensmd ?)
+	  movei a,%emchn	;DEVICE NOT ASSIGNABLE TO THIS PROCESSOR
+	caie 1,rnamx3		;Write or owner access to destination required
+	 cain 1,rnamx8		;Write or owner access to source required
+	  movei a,%emchn	;DEVICE NOT ASSIGNABLE TO THIS PROCESSOR
+	caie 1,deldx1		;Wheel or operator capability required
+	 cain 1,whelx1		;Wheel or operator capability required
+	  movei a,%emchn	;DEVICE NOT ASSIGNABLE TO THIS PROCESSOR
+	cain 1,gjfx38		;File not found because output-only device
+	 movei a,%ensio		;WRONG DIRECTION
+	caie 1,desx4		;Invalid use of terminal designator
+	 cain 1,desx9		;Invalid operation for this device
+	  movei a,%ebddv	;WRONG TYPE DEVICE
+	caie 1,rnamx1		;Files are not on same device
+	 cain 1,opnx18		;Unit record devices are not available (?)
+	  movei a,%ebddv	;WRONG TYPE DEVICE
+	cain 1,desx8		;File is not on disk
+	 movei a,%ebddv		;WRONG TYPE DEVICE
+	caie 1,dlfx11		;Cannot delete directory file in this manner
+	 cain 1,opnx14		;Invalid mode requested
+	  movei a,%ensmd	;MODE NOT AVAILABLE
+	caie 1,gjfx3		;No jfns available
+	 cain 1,gjfx22		;Insufficient system resources
+	  movei a,%enacr	;NO CORE AVAILABLE
+	caie 1,delfx3		;System scratch area depleted
+	 cain 1,opnx17		;No room in job for long file page table
+	  movei a,%enacr	;NO CORE AVAILABLE
+	caie 1,rcdix1		;Insufficient system resources
+	 cain 1,rnmx13		;Insufficient system resources
+	  movei a,%enacr	;NO CORE AVAILABLE
+	caie 1,gjfx36		;Internal format of directory is incorrect
+	 cain 1,iox35		;Unable to allocate disk - structure damaged
+	  movei a,%ebdfl	;UNRECOGNIZABLE FILE
+	caie 1,opnx2		;File does not exist
+	 cain 1,opnx16		;File has bad index block
+	  movei a,%ebdfl	;UNRECOGNIZABLE FILE
+	cail 1,delfx4		;Directory or FDB formatting errors
+	 caile 1,delfx8
+	  cain 1,rnamx9		;Source file is nonexistent
+	   movei a,%ebdfl	;UNRECOGNIZABLE FILE
+	caie 1,rnamx6		;Destination file has bad page table
+	 cain 1,rnmx11		;Source file has bad page table
+	  movei a,%ebdfl	;UNRECOGNIZABLE FILE
+	callret snderr
+
+
+reopen:	skipge filpos		;Can we restore state?
+	 jrst [movei a,3	;No, lose
+	       jrst iocerr]
+	call setena
+	push p,1
+	push p,2
+	push p,3
+	move 1,filjfn
+	movx 2,of%rd
+	txne f,f%out
+	 movx 2,of%rd\of%wr
+	txne f,f%nrf
+	 txo 2,of%pdt
+	move 3,bytsiz
+	dpb 3,[.bp of%bsz,2]
+	OPENF%
+	 jrst [logcal logerr
+	       movei a,3	;Non-recoverable data error.  Maybe could use
+	       jrst iocerr]	;10=CHNL not open or 12=CHNL in illegal mode
+	move 2,filpos
+	SFPTR%
+	 jrst [logcal logerr
+	       movei a,3
+	       jrst iocerr]
+	ifxn. f,f%out
+	  hrli 1,.sflwr
+	  hrroi 2,filaut
+	  skipn filaut
+	   hrroi 2,fuser
+	  call .sfust
+	endif.
+	jrst pop3j
+
+;Read user name from packet into fuser, dequotifying.
+guser:	ifle. v
+	  move w,[ascptr [asciz "Somebody"]]
+	  movei v,8
+	endif.
+	move 1,[ascptr fuser]
+	movei 3,39.		;At most 39 chars in username.
+	do.
+	  ildb 2,w
+	  caie 2,^V
+	   cain 2,^Q
+	  ifnsk.
+	    soje v,endlp.
+	    ildb 2,w
+	  endif.
+	  sosl 3
+	   idpb 2,1
+	  sojg v,top.
+	enddo.
+	move w,[ascptr fhost]
+	movei 2,"@
+	do.
+	  sojl 3,endlp.
+	  idpb 2,1
+	  ildb 2,w
+	  jumpn 2,top.
+	enddo.
+	idpb v,1		;V=0
+	txnn f,f%top
+	  ret
+	;;Set session remark for FINGER
+	.scalar remark(14)
+	move 1,[[asciz "CHAOS SERVER "],,remark]
+	blt 1,remark+2
+	move 1,[170700,,remark+2]
+	move 2,[ascptr fuser]
+	 ildb 3,2
+	 idpb 3,1
+	jumpn 3,.-2
+	seto 1,
+	movei 2,.sjsrm
+	hrroi 3,remark
+	SETJB%
+	 ernop
+	move 1,[sixbit/RMTDEV/]
+	move 2,1
+	SETSN%
+	 move 1,2
+	SETNM%
+	 ernop
+	ret
+
+;Get local host name in LHOST.  Uses dirbuf as temp
+glhost:	move 1,[fhost,,dirbuf]	;Stash this away
+	blt 1,dirbuf+hostln-1
+	push p,fhostn
+	movei 1,.chnph
+	hrroi 2,fhost
+	CHANM%
+	 erjmp [setzm fhost
+		jrst glhst1]
+	movem 1,fhostn
+	call ghost0
+glhst1:	move 1,[fhost,,lhost]
+	blt 1,lhost+hostln-1
+	pop p,fhostn
+	move 1,[dirbuf,,fhost]
+	blt 1,fhost+hostln-1
+	ret
+
+;Get foreign host name into FHOST.  Try to make it as short as possible.
+ghost:	move 1,netjfn
+	movei 2,.mofhs
+	MTOPR%
+	 erjmp [dmove 1,[asciz "[RMTDEV]"]
+		dmovem 1,fhost
+		ret]
+	movem 3,fhostn
+	movei 1,.chnns
+	hrroi 2,fhost
+	CHANM%
+	 erjmp [hrroi 1,fhost
+		move 2,fhostn
+		movei 3,8
+		NOUT%
+		 fatal
+		ret]
+ghost0:	move 4,[ascptr fhost]	;Try to trim it down a bit
+	do.			;First remove any domains
+	  ildb 1,4
+	  jumpe 1,endlp.
+	  caie 1,".
+	   loop.
+	  setz 1,
+	  dpb 1,4
+	  movei 1,.chnsn
+	  hrroi 2,fhost
+	  CHANM%
+	  ifnje.
+	    camn 1,fhostn
+	     exit.
+	  endif.
+	  movei 1,".		;Not known w/o domain, or different host
+	  dpb 1,4		;Make like nothing happened
+	  loop.			;Keep trying
+	enddo.
+	move 1,fhost		;Now maybe strip MIT-
+	trz 1,377
+	came 1,[asciz "MIT-"]
+	ifskp.
+	  movei 1,.chnsn
+	  move 2,[100700,,fhost]
+	  CHANM%
+	annje.
+	  came 1,fhostn
+	anskp.
+	  move 1,[440700,,fhost]	;Win, shift it up
+	  move 2,[100700,,fhost]
+	   ildb 3,2
+	   idpb 3,1
+	  jumpn 3,.-2
+	endif.
+	ret
+
+;Rename filjfn to A, preserving author strings.  A released win or lose
+.rnamf:	move 1,filjfn
+	hrli 1,.gfaut
+	hrroi 2,filaut
+	GFUST%
+	ifnje.
+	  move 1,A
+	  hrli 1,.sfaut
+	  hrroi 2,filaut
+	  call .sfust
+	endif.
+	move 1,filjfn
+	hrli 1,.gflwr
+	GFUST%
+	ifnje.
+	  move 1,A
+	  hrli 1,.sflwr
+	  hrroi 2,filaut
+	  call .sfust
+	endif.
+	move 1,filjfn
+	move 2,A
+	RNAMF%
+	 jrst [exch 1,A
+	       RLJFN%
+		nop
+	       move 1,A
+	       ret]
+	movem A,filjfn
+	retskp
+
+;Get a jfn defaulting device and directory from filjfn
+defjfn:	movem 1,defgjb
+	push p,2
+	move 2,filjfn
+	hrroi 1,defdev
+	movx 3,fld(.jsaof,js%dev)
+	JFNS%
+	hrroi 1,defdir
+	movx 3,fld(.jsaof,js%dir)
+	JFNS%
+	pop p,2
+	movei 1,defgjb
+	GTJFN%
+	 ret
+	retskp
+
+	.scalar defdev(20),defdir(20)
+defgjb:	0
+	.nulio,,.nulio
+	-1,,defdev
+	-1,,defdir
+	0
+	0
+	0
+	0
+	0
+
+;SFUST preserving lower-case letters.  Called with 1/code,,jfn, 2/pointer
+	.scalar sfubuf(20)
+.sfust:	push p,1
+	move 1,[ascptr sfubuf]
+	hrli 2,440700
+	movei 4,^V		;Copy string quoting lower-case letters
+	do.
+	  ildb 3,2
+	  cail 3,"a
+	   caile 3,"z
+	    abskp
+	     idpb 4,1
+	  idpb 3,1
+	  jumpn 3,top.
+	enddo.
+	pop p,1
+	hrroi 2,sfubuf
+	SFUST%
+	 ernop
+	ret
+
+setena:	txnn f,f%out
+	 ret
+	push p,1
+	move 1,[disable]
+	exch 1,-1(p)
+	exch 1,(p)
+enable:	push p,1
+	push p,2
+	push p,3
+	movei 1,.fhslf
+	setob 2,3
+	EPCAP%
+	jrst pop3j
+
+disabl:	push p,1
+	push p,2
+	push p,3
+	movei 1,.fhslf
+	movx 3,#sc%cha
+	EPCAP%
+pop3j:	pop p,3
+	pop p,2
+	pop p,1
+	ret
+
+neterr:	move 1,netjfn
+	hrli 1,(cz%abt)
+	CLOSF%
+	 nop
+die:	call disable
+	logcal logcls
+	HALTF%
+	jrst .-1
+
+$fatal:	jrst die
+fatal=:<call $fatal>
+jfatal=:<ercal $fatal>
+
+retskp=:<jrst rskp>
+
+
+ifn logsw,[
+
+.insrt mid:output.mid
+
+	.scalar logacs(4)
+
+logini:	dmovem 1,logacs
+	dmovem 3,logacs+2
+	setzm logjfn
+	movx 1,gj%sht\gj%old
+	hrroi 2,lognam
+	GTJFN%
+	 jrst nologf
+	movem 1,logjfn
+	movx 2,fld(7,of%bsz)\of%app
+	OPENF%
+	 jrst nologf
+	hrroi 2,fuser
+	hrroi 3,[asciz "(Toplev)"]
+	txnn f,f%top
+	 hrroi 3,[asciz "(Fork)"]
+	jout 1,"%_%T RMTDEV %2V %3V%_"
+logret:	dmove 1,logacs
+	dmove 3,logacs+2
+	ret
+
+nologf:	skipe 1,logjfn
+	 RLJFN%
+	  nop
+	setzm logjfn
+	jrst logret
+
+logrcd:	$jout. logjfn,"%A Rcv %!v D bits%_"
+	ret
+
+logrcc:	dmovem 1,logacs
+	dmovem 3,logacs+2
+	hrroi 2,[asciz "%1O"]
+	caige 1,cmdcnt
+	 hrroi 2,cmdnam(1)
+	$jout. logjfn,"%A Rcv Cmd %2S "
+	dmove 3,v
+logstr:	move 1,logjfn
+	do.
+	  sojl 3,endlp.
+	  ildb 2,4
+	  caie 2,chnl
+	  ifskp.
+	    jout 1,"<nl>"
+	    loop.
+	  endif.
+	  tlnn 2,200
+	  ifskp.
+	    jout 1,"<meta-%2C>"
+	    loop.
+	  endif.
+	  BOUT%
+	  loop.
+	enddo.
+	jout 1,"%_"
+	jrst logret
+
+logioc:	$jout. logjfn,"%A IOC Error 0%!a O%_"
+	ret
+
+logsnd:	caie 2,%corpl
+	ifskp.
+	  dmovem 1,logacs
+	  dmovem 3,logacs+2
+	  ldb 3,[$ccode+chpkt]
+	  hrroi 2,[asciz "%3O"]
+	  caige 3,cmdcnt
+	   hrroi 2,cmdnam(3)
+	  ldb 4,[$rerrc+chpkt]
+	  $jout logjfn,"%A Snd Rpl %2S Err=0%4O "
+	  ldb 3,[$cpknb+chpkt]
+	  subi 3,4.
+	  move 4,[$rdata+chpkt]
+	  jrst logstr
+	endif.
+	caie 2,%coasy
+	 jout logjfn,"%A Snd pkt#%2O 0%1O bytes%_"
+	ret
+
+logerr:	$jout logjfn,"%A Jsys err %1E%_"
+	ret
+
+logcls:	dmovem 1,logacs
+	dmovem 3,logacs+2
+	jout logjfn,"%A Die%_"
+	move 1,logjfn
+	CLOSF%
+	 nop
+	setzm logjfn
+	jrst logret
+
+cmdnam:	offset -.
+r.opno::asciz "OPNO"
+r.opni::asciz "OPNI"
+r.dirl::asciz "DIRL"
+r.renm::asciz "RENM"
+r.dele::asciz "DELE"
+r.expu::asciz "EXPU"
+r.crdi::asciz "CRDI"
+r.mlnk::asciz "MLNK"
+r.reu::	asciz "REU"
+	asciz "11"
+	asciz "12"
+	asciz "13"
+	asciz "14"
+	asciz "15"
+	asciz "16"
+	asciz "17"
+r.cls::	asciz "CLS"
+r.alc::	asciz "ALC"
+r.acc:: asciz "ACC"
+r.rnmw::asciz "RNMW"
+r.delw::asciz "DELW"
+r.srd::	asciz "SRD"
+r.sfd::	asciz "SFD"
+r.saut::asciz "SAUT"
+r.rsts::asciz "RSTS"
+cmdcnt==:.
+	offset 0
+]
+
+	variables
+junk:	constants
+dirbuf==:.+2000
+	end begin

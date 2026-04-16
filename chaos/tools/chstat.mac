@@ -1,0 +1,74 @@
+title chstat
+search monsym,macsym
+.requi sys:macrel
+
+stdac.
+
+pdl: block <pdlz==100>
+
+start:	reset
+	move p,[iowd pdlz,pdl]
+
+	hrroi t1,[asciz "CHSTAT:
+"]
+	psout
+	movx t1,sixbit/CHSTAT/
+	sysgt
+	call prtab
+
+	hrroi t1,[asciz "
+CHPMXT:
+"]
+	psout
+	movx t1,sixbit /CHPMXT/
+	sysgt
+	call prtab
+
+	hrroi t1,[asciz "
+MYCHAD
+"]
+	psout
+	movx t1,sixbit /MYCHAD/
+	sysgt
+	call prtab
+
+	haltf
+
+prtab:	;; t2 has -nwords,,tblnum
+	move p1,t2
+	hllz p2,t2		;make aobjn in p2
+	do.
+	 hrl t1,p2		;get index in tbl
+	 hrr t1,p1		;get tbl num
+	 getab
+	  ercal bomb
+	 move t2,t1
+	 movx t1,.priou
+	 movx t3,fld(^d10,no%rdx)
+	 nout
+	  ercal bomb
+	 hrroi t1,[asciz "	"]
+	 psout%
+	 movx t1,.priou
+	 movx t3,fld(8,no%rdx)
+	 nout
+	  ercal bomb
+	 hrroi t1,[asciz "
+"]
+	 psout
+	 aobjn p2,top.
+	enddo.
+
+	ret
+
+bomb:	hrroi   1,[asciz "JSYS error: "]
+        esout%
+        movx    1,.priou
+        hrloi   2,.fhslf
+        setz    3,
+        erstr%
+         nop
+         nop
+        haltf%
+
+end start

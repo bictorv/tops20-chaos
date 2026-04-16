@@ -1,0 +1,499 @@
+	title hostat
+	search monsym,macsym
+	search chadfs
+	.require sys:macrel
+
+stdac.
+defip.
+
+ifndef $docha,<$docha==1>
+
+;; Chaos protocol number in IP
+ifndef .chafm,<.chafm==20>
+
+ife $docha,<
+;; Chaosnet-over-IP arg block for ASNIQ%
+chiqb:	exp <.CHAFM>b31		;.IQPRV protocol number - Chaos
+	exp 0			;.IQFHV foreign host value
+	exp 0			;.IQSHV source host value
+	exp 0			;.IQPTV port values (local,,foreign)
+	exp 377b31		;.IQPRM protocol number mask
+	exp 0 ;^-17		;.IQFHM foreign host mask - any
+	exp 0 ;^-17		;.IQSHM source host mask - any
+	exp 0			;.IQPTM port value mask (Chaos is portless)
+	exp .IQLEN+1		;.IQLEN length of this block
+>
+
+chpkwd:	block 1			;how long the packet ended up, in words
+chpkby:	block 1			;and in bytes
+
+chpmxw==<<^d488+3>/4>		;max pkt size in words
+;; Chaos input buffer
+chiipb:	block .ipkdh+2		;rcvin IP header (incl length word)
+chinbf: block chpmxw
+
+;; Chaos output buffer
+choipb: block .ipkdh+2		;sndin IP header (incl length word)
+choubf:	block chpmxw
+
+mychad:	3024			;Hardwired source
+mxchad:	3431			;Default dest Peg
+
+ife $docha,<
+;; IP of MX12, who can route anywhere
+mxip:	<^d10>b11+<1>b19+<1>b27+<^d72>b35
+
+;; Chaos IQ handle
+cqhand:	block 1
+>
+ifn $docha,<
+chjfn:	block 1
+cfnam:	block <^d70>/5
+>
+
+;; Stack
+pdl:	block <pdlsiz==^d128>
+
+hostat:	reset%
+	move p,[iowd pdlsiz,pdl]
+	call getjcl		;get some JCL, the host to stat
+
+ife $docha,<
+	move t4,mxip
+	lsh t4,4
+	movem t4,.IQFHV+chiqb	;save foreign address
+
+	;; assign an internet queue
+mkq:	movei t1,chiqb
+	setzb t2,t3
+	asniq%
+	 ercal bomb
+	movem t1,cqhand
+	call mkch		;make Chaos pkt
+	call mkip		;make IP header
+	call snd		;send it
+again:	call rcv		;receive answer
+>
+ifn $docha,<
+mks:	move t1,[point 7,cfnam]
+	move t2,[point 7,[asciz "CHA:"]]
+	do.
+	 ildb t3,t2
+	 jumpe t3,endlp.
+	 idpb t3,t1
+	 loop.
+	od.
+	move t2,mxchad
+	movei t3,^d8
+	nout%
+	 ercal bomb
+	move t2,[point 7,[asciz ".STATUS"]]
+	;move t2,[point 7,[asciz ".TSTASU"]]
+	do.
+	 ildb t3,t2
+	 idpb t3,t1
+	 jumpn t3,top.
+	od.
+gjf:	movx t1,gj%sht
+	hrroi t2,cfnam
+	setz t3,
+	gtjfn%
+	 ercal bomb
+	movem t1,chjfn
+	movx t2,fld(8,of%bsz)+of%rd	;Hmm.
+	openf%
+	 ercal bomb
+again:	move t1,chjfn
+	movx t2,.mopkr
+	movei t3,chinbf
+	mtopr%
+	 ercal bomb
+	movei q2,chinbf
+>
+	call dscrib		;describe answer
+	ifnsk.
+	  hrroi t1,[asciz "
+Getting new pkt.
+"]
+	  psout%
+	  jrst again
+	else.
+	 haltf%
+	endif.
+
+ife $docha,<
+;; send it off
+snd:	move t1,cqhand
+	movei t2,choipb
+	setz t3,
+	sndin%
+	 ercal bomb
+	ret
+
+rcv:	;; say how much we can receive
+	movei t1,.ipkdh+2+chpmxw	;max response size
+	movem t1,.inqbh+chiipb
+
+	;; and wait for response
+	move t1,cqhand
+	movei t2,chiipb
+	setz t3,
+respns:	rcvin%
+	 ercal bomb
+	ret
+
+;; create chaos packet
+mkch:	setzm choubf
+	move t1,[choubf,,choubf+1]
+	blt t1,choubf+chpmxw-1
+	
+	movei q1,choubf
+	movei t1,.corfc		;make an RFC
+	stor t1,cpkop,(q1)
+	move t1,mxchad
+	stor t1,cpkda,(q1)	;dest addess
+	setzro cpkdi,(q1)	;dest index
+	move t1,mychad
+	stor t1,cpksa,(q1)	;source addr
+
+	;; copy contact name
+	move t4,[point 7,[asciz "STATUS"]]
+	move t3,[point 8,chpkdt+choubf]
+	do.
+	 ildb t2,t4
+	 skipn t2
+	  exit.
+	 idpb t2,t3
+	 loop.
+	od.
+	movei t1,6		;STATUS has 6 bytes
+	stor t1,cpknb,(q1)
+	addi t1,chpkdt*4	;add header bytes
+	movem t1,chpkby
+	hrrz t1,t3
+	subi t1,choubf-1	;round up
+	movem t1,chpkwd		;number of words
+
+	;; need to swap Chaos header,
+	;; but not data, since it is bytes. 
+	;; T20 would have swapped body (unless binary), and then
+	;; PDP11 would have swapped it all before sending.
+	move t1,[point 8,choubf]
+	move t2,[point 8,choubf]
+	movei q3,chpkdt
+	call swap
+
+	ret
+
+;; make IP header
+mkip:	setzm choipb
+	move t1,[choipb,,choipb+1]
+	blt t1,choipb+.ipkdh+1
+
+	movei q2,choipb+1	;point at IP header
+	movei t1,.intvr		;IP version
+	stor t1,piver,(q2)
+	movei t1,.ipkdh+1	;offset to data (in 32-bit words)
+	stor t1,pido,(q2)
+	move t1,chpkby		;packet length
+	addi t1,<.ipkdh+1>*4
+	stor t1,pipl,(q2)
+	movei t1,.chafm		;Chaos protocol nr
+	stor t1,pipro,(q2)
+	movei t1,77		;ttl
+	stor t1,pittl,(q2)
+	move t1,mxip
+	stor t1,pidh,(q2)	;dest host
+	;; source host is filled in by monitor
+
+	;; say how long it is in words
+	move t1,chpkwd
+	addi t1,.ipkdh+2	;IP header + length word
+	movem t1,.inqbh+choipb
+	ret
+>
+
+;; describe the packet received
+dscrib:	
+ife $docha,<
+	hrroi t1,[asciz "Received pkt len "]
+	psout%
+	hlrz t2,chiipb
+	movei t1,.priou
+	movei t3,^d10
+	nout%
+	 ercal bomb
+	movei q1,chiipb+1
+	hrroi t1,[asciz " IP len "]
+	psout%
+	load t2,pipl,(q1)
+	movei t1,.priou
+	nout%
+	 ercal bomb
+	hrroi t1,[asciz ", protocol "]
+	psout%
+	load t2,pipro,(q1)
+	movei t1,.priou
+	nout%
+	 ercal bomb
+	caie t2,.chafm
+	ifnsk.
+	 hrroi t1,[asciz "Not Chaosnet!"]
+	 esout%
+	 haltf%
+	endif.
+	hrroi t1,[asciz "
+Source IP "]
+	psout%
+	load p1,pish,(q1)
+	lsh p1,4
+	movei p2,4
+	move t4,[point 8,p1]
+	do.
+	 ildb t2,t4
+	 movei t1,.priou
+	 nout%
+	  ercal bomb
+	 sojle p2,endlp.
+	 movei t1,"."
+	 pbout%
+	 loop.
+	od.
+
+	;; swap header
+	move t1,[point 8,chinbf]
+	move t2,[point 8,chinbf]
+	movei q3,chpkdt
+	call swap
+	;; get address of Chaos pkt in q2
+	load q2,pido,(q1)
+	add q2,q1
+>
+
+	;; describe Chaos pkt in q2
+dsccha:	hrroi t1,[asciz "
+Chaos source "]
+	psout%
+	load t2,cpksa,(q2)
+	movei t1,.priou
+	movei t3,8
+	nout%
+	 ercal bomb
+	hrroi t1,[asciz ", nbytes "]
+	psout%
+	load t2,cpknb,(q2)
+	movei t3,^d10
+	movei t1,.priou
+	nout%
+	 ercal bomb
+	hrroi t1,[asciz ", opcode "]
+	psout%
+	load t2,cpkop,(q2)
+	movei t1,.priou
+	nout%
+	 ercal bomb
+	caie t2,.coans
+	ifnsk.
+	 hrroi t1,[asciz "
+Not an ANS!
+"]
+	 psout%
+	 ret		;try again
+	endif.
+chdat:	hrroi t1,[asciz "
+Host: "]
+	psout%
+	;; make a bp to data
+	move t4,q2
+	addi t4,chpkdt
+	hrli t4,441000
+	move t1,t4
+	psout%
+	hrroi t1,[asciz "
+"]
+	psout%
+	load q3,cpknb,(q2)
+	lsh q3,-2
+	subi q3,^d32/4
+	move q1,q2
+	addi q1,^d32/4+chpkdt
+	add q3,q1
+	do.
+	 caml q1,q3
+	  exit.
+	 call hshow
+	 loop.
+	od.
+	;; don't try again
+	retskp
+
+;; Structure of a STATUS entry, modulo swapping
+defstr(hsubn,0,15,16)
+defstr(helen,0,31,16)
+defstr(hin,1,31,32)
+defstr(hout,2,31,32)
+defstr(habrt,3,31,32)
+defstr(hlost,4,31,32)
+defstr(hcrc,5,31,32)
+defstr(hcrc2,6,31,32)
+defstr(hbad,7,31,32)
+defstr(hrej,8,31,32)
+
+;; swap 16b in t2
+swb16b:	setz p1,
+	ldb p1,[001000,,t2]	;put lsb in msb
+	lsh p1,8
+	lsh t2,-8		;shift out lsb
+	ior t2,p1		;get lsb in msb
+	ret
+
+;; swap 32b
+swb32b:	move p2,t2
+	andi t2,177777
+	call swb16b
+	exch p2,t2
+	lsh p2,^d16
+	lsh t2,-^d16
+	call swb16b
+	ior t2,p2
+	ret
+
+p32b:	psout%
+	movei t1,.priou
+	call swb32b
+	movei t3,^d10
+	nout%
+	 ercal bomb
+	ret
+
+;; Show a hostat entry pointed to by q1
+hshow:	load t2,helen,(q1)
+	call swb16b
+	;; number of 16b words following length
+	caie t2,7*2
+	 cain t2,8*2
+	ifskp.
+	  hrroi t1,[asciz "Bad record length "]
+	  esout%
+	  movei t1,.priou
+	  movei t3,^d10
+	  nout%
+	   ercal bomb
+	  haltf%
+	endif.
+	move t4,t2
+	hrroi t1,[asciz "Net "]
+	psout%
+	movei t1,.priou
+	load t2,hsubn,(q1)
+	call swb16b
+	trz t2,400
+	movei t3,8
+	nout%
+	 ercal bomb
+	hrroi t1,[asciz ": In "]
+	load t2,hin,(q1)
+	call p32b
+	hrroi t1,[asciz ", Out "]
+	load t2,hout,(q1)
+	call p32b
+	hrroi t1,[asciz ", aborted "]
+	load t2,habrt,(q1)
+	call p32b
+	hrroi t1,[asciz ", lost "]
+	call p32b
+	hrroi t1,[asciz ", CRC "]
+	load t2,hcrc,(q1)
+	call p32b
+	hrroi t1,[asciz ", CRC2 "]
+	load t2,hcrc2,(q1)
+	call p32b
+	hrroi t1,[asciz ", bad "]
+	load t2,hbad,(q1)
+	call p32b
+	cain t4,8*2
+	ifnsk.
+	  hrroi t1,[asciz ", rej "]
+	  load t2,hrej,(q1)
+	  call p32b
+	endif.
+	hrroi t1,[asciz "
+"]
+	psout%
+	lsh t4,-1		;make words from 16b words
+	addi t4,1		;account for net+length word
+	add q1,t4
+	ret
+
+;; Swap Q3 words of 8-bit data from pointer in t1 to t2
+swap:	lsh q3,1
+	do.
+	  ildb t3,t1
+	  ildb t4,t1
+	  idpb t4,t2
+	  idpb t3,t2
+	  sojg q3,top.
+	od.
+	ret
+
+;; Get JCL
+getjcl:	movei t1,.rsini
+	rscan%
+	 ercal bomb
+	ifn. t1
+	 do.
+	  pbin%
+	  caie t1,.chtab
+	   cain t1,.chspc
+	    loop.
+	  caie t1,.chffd
+	   cain t1,.chlfd
+	    exit.
+	  do.
+	   pbin%
+	   caie t1,.chtab
+	    cain t1,.chspc
+	    ifnsk.
+	     movei t1,.priin
+	     movei t3,8
+	     nin%
+              ifjer.
+;	       hrroi t1,[asciz "Bad host address
+;"]
+;	       esout%
+	       jrst nojcl
+              endif.
+	      movem t2,mxchad
+	      hrroi t1,[asciz "Sending to host "]
+	      psout%
+	      movei t1,.priou
+	      movei t3,8
+	      nout%
+	       ercal bomb
+	      hrroi t1,[asciz "
+"]
+	      psout%
+	      exit.
+	    endif.
+	  caie t1,.chffd
+	   cain t1,.chlfd
+	    exit.
+	  loop.
+         od.
+	od.
+	endif.
+nojcl:	movei t1,.priin
+	cfibf%
+	ret
+
+bomb:	hrroi   1,[asciz "JSYS error: "]
+        esout%
+        movx    1,.priou
+        hrloi   2,.fhslf
+        setz    3,
+        erstr%
+         nop
+         nop
+        haltf%
+
+	end hostat

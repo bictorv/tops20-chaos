@@ -7716,7 +7716,7 @@ TGTOK:	TRNE T2,400000		;CHECK FOR USER FUNCTION CODE
 	HRR T1,T2		;PUT THE ORIGINAL VALUE BACK IN RH
 	RET			;RETURN FLAGS,,FUNCTION TO USER
 
-GTDSTF:	CALL DSTCHK		;check if DST method type is valid
+GTDSTF:	CALLx (xcdsec,DSTCHK)		;check if DST method type is valid
 	UMOVEM	T1,T2		;return it to user
 	RET			;return
 

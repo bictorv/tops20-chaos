@@ -1,0 +1,749 @@
+	subttl OUTPUT
+.auxil
+
+;;GZ, 6-Nov-84
+
+comment 
+This is a MIDAS library which provides a functionality similar to C's
+printf and Lisp's format functions.  It contains two routines, OUTPUT"%POUT
+and OUTPUT"%JOUT.   Each takes a string argument containing formatting commands
+introduced by the percent (%) character.  The percent character is followed
+by an optional octal number and then a single character which identifies the
+output operation.  The octal number is an argument to the specified operation
+and is usually interpreted as an address of a location in memory whose contents
+is to be displayed in some way (some operations however interpret their
+argument as a repeat count).  For the benefit of MIDAS's .ASCII pseudo-op,
+OUTPUT allows and ignores a single space following the numeric argument.
+
+Here are the defined OUTPUT operators:
+
+%n%	Outputs n percent signs (with no argument, outputs 1 percent sign).
+
+%n_	outputs n CRLF's (with no argument, outputs 1 CRLF).
+
+%n~	outputs n newlines, that is goes to a fresh line and then outputs
+	n-1 CRLF's (with no argument, just goes to a fresh line).
+
+%n'	Outputs the sixbit word in n, left justified (i.e. not including
+	trailing spaces).
+
+%n`	Like %n', but outputs all six columns.
+
+%n&	Outputs the squoze (radix50) word in n
+
+%^M	Ignores following CRLF's and whitespace.
+
+%nT	Outputs the date and time for the internal tad in n.  With no argument,
+	outputs current date and time
+
+%nA	Outputs the time (only) of the internal tad in n.
+	With no argument, outputs current time.
+
+%nB	Outputs the date (only) of the internal tad in n.
+	With no argument, outputs current time.
+
+%nE	Outputs the error message for error code in n.
+	With no argument, outputs the error message for last error.
+
+%nJ	Outputs the filename associated with the jfn in n.
+
+%nF	Outputs the full filename associated with the jfn in n (i.e. including
+	the directory even if it's the connected one)
+
+%nK	Outputs the chaosnet host name (or octal number if unknown) for host
+	number 	in n.  With no argument, outputs local host name.
+
+%nN	Output the Internet host name (or octal number) for host number
+	in n.  With no argument output local host name.
+
+%nR	Outputs the directory name for directory number in n.  (If n contains
+	a user number, outputs the login directory of that user).  With
+	no argument, outputs the connected directory.
+
+%nU	Outputs the user name for user number in rhs of n (The lhs of n is
+	ignored).  With no argument, outputs the logged in user name.
+
+%nS	Outputs an asciz string from bp in n, interpreting %-codes in the
+	string.
+
+%nV	Outputs an asciz string from bp in n verbatim (i.e. without
+	interpreting %-codes).
+
+%nD	Outputs contents of n in decimal.
+
+%nO	Outputs contents of n in octal.
+
+%nQ	Outputs rhs of contents of n in octal.
+
+%nH	Outputs contents of n as "x,,y" in octal.
+
+%nC	Output character whose ascii code is in n.  If the contents is 0,
+	nothing is output.  To output a null, put n/ -1,,0
+
+%nP	Outputs "s" if contents of n is not 1.
+
+%nY	Outputs "ies" if contents of n is not 1, otherwise outputs "y".
+
+%nXc	Extended command, to allow application-specific extensions to the
+	package.  This command is normally not defined, you must set
+	$$OUTX==1 to enable it and define a dispatch table at location OUXTAB.
+	The format of the dispatch table is:
+	OUXTAB: character,,routine
+		...
+		character,,routine
+		0
+	The order of the entries doesn't matter.  Any character except null
+	is allowed, but lower and upper case letters are treated the same.
+	When a %nXc command is encountered in the input string, the routine
+	associated by OUXTAB with the character 'c' is called with:
+	  AC1/ output designator (bp or jfn)
+	  AC2/ contents of location n in caller's context
+	  AC3/ n
+	  AC4/ c
+	(Note that AC2 isn't necessarily the same as (AC3), since n could
+	 be one of the registers saved on the stack by OUTPUT.  In general
+	 the routine should use AC3 only if the argument is a repeat count,
+	 and use AC2 otherwise)
+	If no argument was specified, AC2 and AC3 contain 0.
+	The routine should do its output to the designator in AC1 and
+	return with AC1 containing the updated output designator.  It may
+	freely clobber AC2-AC4, but must preserve any other ac's it uses.
+
+	Note: this is intended for truly application-specific operations. If
+	you have something that's reasonably general and useful, add it to the
+	library as a regular command so other people can use it too.  You can
+	put it under the control of a $$switch if it's fairly large.
+
+
+Examples:
+
+asciz "%~%%Couldn't open %1J -- %E"
+	Goes to a fresh line and outputs "%Couldn't open FILENAME -- error msg"
+	where FILENAME is the name of the file whose jfn is in AC1.
+
+asciz "I found %2D file%2P"
+	Outputs "I found 1 file" if AC2 contains 1, otherwise outputs
+	"I found N files".
+
+asciz "I found %2D entr%2P"
+	Outputs "I found 1 entry" or "I found N entries" as appropriate.
+
+.ascii "Connected to host %!hstnum K"
+	Outputs "Connected to host FOO" where FOO is the name of host
+	whose number is in HSTNUM.
+
+asciz "The value is %1XH (hex)"
+	Might output "The value is nnn (hex)" where nnn is the value of
+	1 in hex, assuming OUXTAB contains an "H,,hex-output-routine entry.
+
+
+Calling conventions:
+
+%POUT writes a string to the primary designator.  Its calling sequence
+is:
+	CALL OUTPUT"%POUT
+	  ASCIZ "string"
+	....
+%POUT returns to the first non-zero location following the end of the asciz
+string.  This library defines four macros for calling OUTPUT"%POUT:
+	POUT   "string"
+	$POUT  "string"
+	POUT.  "string"
+	$POUT. "string"
+POUT and POUT. expand into single instructions while $POUT and $POUT. expand
+into multi-word inline code.  POUT and $POUT use the ASCIZ pseudo-op while
+POUT. and $POUT. use .ASCII (so "!" is special in the string).
+
+%JOUT writes a string to an arbitrary designator.  Its calling sequence
+is:
+	CALL OUTPUT"%JOUT
+	  designator_address ? ASCIZ "string"
+
+where designator_address is the address of a location containing an output
+designator (a byte pointer or a JFN).  The address can be indexed or even
+indirect (including indexing thru the stack pointer -- %JOUT will adjust
+for the extra push of the CALL used to call it), for example
+	MOVEM JFN,-12(P)
+	CALL OUTPUT"%JOUT
+	  -12(P) ? ASCIZ "string"
+
+** Important: if the output designator is a JFN, the left half of the word at
+the designator address must be 0.  %JOUT uses this to distinguish a byte
+pointer for optimization purposes **.
+
+The calling macros defined are
+	JOUT   jfn,"string"
+	$JOUT  jfn,"string"
+	JOUT.  jfn,"string"
+	$JOUT. jfn,"string"
+analogous to the POUT set.  (Note however that jfn cannot be indexed through
+the stack pointer with the JOUT and JOUT. macros, because they use an extra
+PUSHJ P, instruction)
+
+Both %OUT and %JOUT are re-entrant, and can be used both at normal and
+interrupt levels.  Note however that if the output designator
+is a byte pointer, then it is not updated until the entire string is processed.
+Thus it will not work right to %JOUT to the same string buffer at interrupt
+level while you're already %JOUTing to it at normal level.
+
+%JOUT to a string behaves like most output jsysi in that it writes a
+terminating null but backs up the byte pointer to before the null.
+
+Both routines are pure and preserve all registers (except possibly for the
+output designator).  Both require about 30. words of stack space.
+
+
+;;The macros are defined outside the OUTPUT block for easier typing.
+DEFINE $POUT &string
+	CALL OUTPUT"%POUT
+	 ASCIZ string
+TERMIN
+
+DEFINE $POUT. &string
+	CALL OUTPUT"%POUT
+	 OUTPUT"XASCII string
+TERMIN
+
+DEFINE POUT &string
+	CALL [$POUT string
+	      RET]
+TERMIN
+
+DEFINE POUT. &string
+	CALL [$POUT. string
+	      RET]
+TERMIN
+
+DEFINE $JOUT jfn,&string
+	CALL OUTPUT"%JOUT
+	 jfn
+	 ASCIZ string
+TERMIN
+
+DEFINE $JOUT. jfn,&string
+	CALL OUTPUT"%JOUT
+	 jfn
+	 OUTPUT"XASCII string
+TERMIN
+
+DEFINE JOUT jfn,&string
+	CALL [$JOUT jfn,string
+	      RET]
+TERMIN
+
+DEFINE JOUT. jfn,&string
+	CALL [$JOUT. jfn,string
+	      RET]
+TERMIN
+
+
+	.BEGIN OUTPUT
+
+;;A version of .ASCII that has a chance of working with .scalars and other
+;;pass2 symbols... Need to figure out something that will work in literals..
+DEFINE XASCII &str,\%xasc
+	.ASCII str
+	IF1,%xasc==:.
+	.ELSE IFG %xasc-.,BLOCK %xasc-.
+	.KILL %xasc
+TERMIN
+
+ifndef $$OUTX,$$OUTX==0		;No extended commands by default
+
+ifndef buflen,buflen==:20	;Default length of stack buffer
+
+;Stack setup during execution:  p points to top of frame, fp to bottom
+ fp==6				;Frame pointer AC, flags in LHS
+  f%str==:400000,,0		;Outputing to string
+ acs==1				;6 words of saved ac's
+  nacs==6
+ inbp==7			;input pointer
+ oubp==8.			;Output pointer
+ oucnt==9.			;Output count
+ oujfn==10.			;Output jfn
+ oubuf==11.			;And finally the buffer
+ retadr==-10.-buflen		;Frame size = 10. words plus buffer
+
+%pout:	adjsp p,-retadr		;Allocate frame
+	dmovem 1,retadr+acs(p)	;Save some acs
+	movei 1,.priou		;Output goes to primary designator
+	jrst %jout0		;Join common code
+
+%jout:	adjsp p,-retadr		;Allocate frame
+	dmovem 1,retadr+acs(p)	;Save some acs
+	aos 2,retadr(p)		;Skip past the designator arg
+	move 2,-1(2)		;Get address of designator
+	tlc 2,17		;See if indexing thru P
+	tlcn 2,17
+	 subi 2,-retadr+1	;Yes, account for frame and the CALL %JOUT
+	exch 2,retadr+acs+1(p)	;Restore ac2 in case indexing thru it
+	move 1,@retadr+acs+1(p)	;Get the designator
+	movem 2,retadr+acs+1(p)	;Save ac2 again
+	;jrst %jout0		;Join common code
+
+%jout0:	dmovem 3,retadr+acs+2(p)	;Save the rest of the acs
+	dmovem 5,retadr+acs+4(p)
+	movei fp,retadr(p)	;Set up frame pointer
+	movem 1,oujfn(fp)	;Save output jfn
+	tlne 1,-1		;A JFN?
+	  jrst [tlo fp,(f%str)	;No, byte pointer
+		tlc 1,-1	;Standardize it
+		tlcn 1,-1
+		 hrli 1,440700
+		movem 1,oubp(fp)	;And output directly to user's buffer
+		hrloi 1,377777	;Infinite room
+		movem 1,oucnt(fp)
+		jrst %jout1]
+	movei 1,oubuf(fp)	;Else initialize output buffer
+	hrli 1,440700
+	movem 1,oubp(fp)
+	movei 1,<5*buflen>-1
+	movem 1,oucnt(fp)
+%jout1:	setzm oubuf(fp)
+	move 1,retadr(p)	;Set up input pointer
+	hrli 1,440700
+	movem 1,inbp(fp)
+	call %outlp		;Do it to it
+	jsp 5,outdmp		;Dump out anything that's left
+	move 3,inbp(fp)		;Fix up the return address
+	movei 3,1(3)		;Past the end of the string
+	skipn (3)		;Find a non-zero word
+	 aoja 3,.-1
+	move 2,retadr(p)	;Save old address in case need it
+	hrrm 3,retadr(p)	;Put in new one
+	jumpl fp,%jout2		;Have to do more work if output to string
+	dmove 1,retadr+acs(p)	;Else just restore ac's
+	dmove 3,retadr+acs+2(p)
+	dmove 5,retadr+acs+4(p)
+	adjsp p,retadr		;Clean up stack
+	popj p,			;And done!
+
+%jout2:	move 1,oubp(fp)		;Need to update the designator in user space
+	setz 3,			;Terminate the string
+	idpb 3,oubp(fp)
+	move 2,-1(2)		;Get address of designator
+	tlc 2,17		;See if indexing thru P, so can use stkvar's
+	tlcn 2,17
+	 subi 2,-retadr+1	;Yes, account for frame and the pushj p,%jout
+	movem 1,(p)		;Save new value on top of stack(in buffer area)
+	movem 2,-1(p)		;And the address
+	dmove 1,retadr+acs(p)	;Get back user acs in case indexing
+	dmove 3,retadr+acs+2(p)
+	dmove 5,retadr+acs+4(p)
+	pop p,@-1(p)		;Pop the new value into the location
+	adjsp p,retadr+1	;Clean up rest of the stack
+	popj p,			;and done
+
+define outch ac
+	sosge oucnt(fp)
+	 jsp 5,outdpx		;Dumps buffer and returns .-1 to try again
+	idpb ac,oubp(fp)
+termin
+
+;jsp 5,outdmp : dump buffer.  Preserves all acs other than 5.
+outdpx:	subi 5,2		;Here to return to .-1, for outch macro
+outdmp:	jumpl fp,[movem 1,oujfn(fp) ;If string output, just update designator
+		  move 1,oubp(fp)
+		  exch 1,oujfn(fp)
+		  jrst (5)]
+	skipn oubuf(fp)		;Anything there?
+	 jrst (5)		;No, punt
+	movem 2,oucnt(fp)	;Save ac
+	setz 2,			;Make sure string properly terminated
+	idpb 2,oubp(fp)
+	movei 2,oubuf(fp)	;Point to start of buffer
+	hrli 2,440700
+	movem 2,oubp(fp)	;Might as well save for later
+	exch 1,oujfn(fp)	;Dump it
+	push p,3
+	setz 3,
+	SOUT%
+	exch 1,oujfn(fp)
+	pop p,3
+	movei 2,<5*buflen>-1	;Set up count
+	exch 2,oucnt(fp)
+	setzm oubuf(fp)		;Mark as empty
+	jrst (5)
+
+;;The main loop
+%outlp:	ildb 1,inbp(fp)		;Next character
+%outl1:	jumpe 1,[ret]
+	cain 1,"%
+	 jrst %%out
+	outch 1			;Not special, just dump it
+	jrst %outlp		;Get next
+
+%%out:	setzb 2,3		;Ok, hit a %
+%%out1:	ildb 1,inbp(fp)		;Read a numeric arg
+	cail 1,"0
+	 caile 1,"9
+	  jrst %%out2
+	imuli 3,8		;Octal
+	addi 3,-"0(1)
+	aoja 2,%%out1
+
+%%out2:	jumpe 2,%%out3		;Skip this if no arg
+	skipg 2,3		;Get the address
+	 jrst .+3
+	caig 2,nacs		;One of the preserved acs?
+	 addi 2,acs-1(fp)	;Yea, it's on the stack now
+	move 2,(2)		;Get contents
+
+%%out3:	cain 1,40		;Ignore one following space for .ASCII
+	 ildb 1,inbp(fp)
+	cail 1,"a		;Ignore case of command char
+	 caile 1,"z
+	  trna
+	   trz 1,40
+	setz 4,			;Search dispatch table
+%%out4:	hlrz 5,outab(4)
+	jumpe 5,[movei 2,"%	;Not found, just output %
+		 outch 2
+		 jrst %outl1]	;and the character itself
+	came 5,1		;Our character?
+	 aoja 4,%%out4		;No, try again
+	hrrz 4,outab(4)		;Get the routine
+	jrst (4)		;Go do it
+
+
+;All routines entered with:
+; 1/character, 2/ arg contents  3/ arg value
+
+;Dispatch table
+outab:	"_,,%outcr	;%_  CRLF's
+	"~,,%outnl	;%~  Newlines
+	"%,,%out%	;%%  %
+	"',,%out6	;%'  Sixbit word in n, left justified
+	"`,,%out66	;%`  Sixbit word in n, all 6 columns
+	"&,,%out50	;%&  Squoze symbol in n
+	^M,,%outfl	;%^M Ignore following CRLF's and whitespace
+	"A,,%outa	;%A  The time (only)
+	"B,,%outb	;%B  The date (only)
+	"C,,%outc	;%C  Character
+	"D,,%outd	;%D  Decimal
+	"E,,%oute	;%E  Error message
+	"F,,%outf	;%F  Long form JFNS
+	"H,,%out8H	;%H  Halfwords
+	"J,,%outj	;%J  JFNS
+	"K,,%outk	;%K  Chaosnet host
+	"N,,%outn	;%N  Internet host
+	"O,,%out8	;%O  Octal
+	"P,,%outp	;%P  Pluralize with "s"
+	"Q,,%out8Q	;%Q  Octal rhs
+	"R,,%outr	;%R  Directory
+	"S,,%outs	;%S  String recursively
+	"T,,%outt	;%T  Date and time
+	"U,,%outu	;%U  User name
+	"V,,%outv	;%V  String verbatim
+IFN $$OUTX,[
+	"X,,%outx	;%X  Extended command
+	]
+	"Y,,%outy	;%Y  Pluralize with "ies"/"y"
+	0
+
+
+%outcr:	movei 1,^M		;%_ CRLF
+	outch 1
+	movei 1,^J
+	outch 1
+	sojg 3,%outcr
+	jrst %outlp
+
+%outnl:	skipe oubuf(fp)		;%~ Terpri
+	  jrst [ldb 2,oubp(fp)	;If have something in buffer, check last
+		cain 2,^J	;Newline?
+		 sojl 3,%outlp	;Yea, account for one
+		jrst %outcr]	;Output rest as crlfs
+ifn 0,[
+	move 1,oujfn(fp)	;No such luck, check output jfn
+	caie 1,.priou		;Primary output?
+	 jrst %outcr		;No, can't tell so just do crlfs
+	movei 2,.vtadv		;Else do terpri
+	VTSOP%
+	 erjmp %outcr
+	sojl 3,%outlp
+]
+	jrst %outcr
+	
+%outfl:	ildb 1,inbp(fp)		;%^M ignore CRLF and whitespace
+	caie 1,^M
+	 cain 1,^J
+	  jrst %outfl
+	caie 1,40
+	 cain 1,^I
+	  jrst %outfl
+	jrst %outl1		;No more whitespace, reprocess last char
+
+%outc:	jumpe 2,%outlp
+	outch 2
+	jrst %outlp
+
+%outs:	jumpe 2,%outlp		;Allow 0 to mean don't output nothing.
+	tlce 2,-1		;%S output string recursively
+	 tlcn 2,-1		;Normalize BP
+	  hrli 2,440700
+	push p,inbp(fp)		;Save current input
+	movem 2,inbp(fp)	;Use this one
+	call %outlp		;Do the processing
+	pop p,inbp(fp)		;Restore old input
+	jrst %outlp
+
+%outv:	jumpe 2,%outlp		;Allow 0 to mean don't output nothing.
+	jsp 3,%outv.		;%V output string verbatim
+	jrst %outlp
+
+%outv.:	tlce 2,-1		;String copy subroutine, preserves ac4
+	 tlcn 2,-1
+	  hrli 2,440700
+%outv1:	ildb 1,2
+	jumpe 1,(3)
+	outch 1
+	jrst %outv1
+
+%out%:	movei 1,"%		;%% output percents
+	outch 1
+	sojg 3,%out%
+	jrst %outlp
+
+%out50:	tlz 2,740000		;%& squoze.  Clear any symbol flags
+	call %out5.		;do it
+	jrst %outlp
+
+%out5.:	idivi 2,50
+	push p,3
+	skipe 2
+	  call %out5.
+	pop p,2
+	adjbp 2,[350700,,[ascii " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.$%"]]
+	ldb 2,2
+	outch 2
+	ret
+
+%out6:	tloa 3,-1		;%' left-justified sixbit
+%out66:	 movei 3,6.		;%` full sixbit
+%out6l:	setz 1,			;Get next char
+	lshc 1,6
+	addi 1,40		;Asciify
+	outch 1			;write it out
+	sojg 3,%out6l		;If want more, do so
+	jumpn 2,%out6l		;Else only do if non-spaces left
+	jrst %outlp
+
+%out8Q:	movei 2,(2)		;%Q RHS in octal
+%out8:	call %out8.		;%O octal
+	jrst %outlp
+
+%out8H:	move 4,2		;%H h,,h in octal
+	lsh 2,-18.		;Do left half
+	call %out8.
+	movei 1,",		;Then commas
+	outch 1
+	outch 1
+	movei 2,(4)		;And now right half
+	jrst %out8
+
+%out8.:	movei 3,12.		;Octal output subroutine
+%out8a:	setz 1,			;(Beats dumping the buffer, NOUT%'ing and
+	lshc 1,3.		; and recomputing the byte count!)
+	jumpn 1,%out8c
+	sojg 3,%out8a
+%out8b:	setz 1,
+	lshc 1,3.
+%out8c: addi 1,"0
+	outch 1
+	sojg 3,%out8b
+	popj p,
+
+%outd:	jumpge 2,%outd1		;%D decimal
+	movei 1,"-
+	outch 1
+	movn 2,2
+%outd1:	move 4,[10000000000.]	;User mode decimal output routine
+%outda:	idiv 2,4
+	jumpn 2,%outdc
+	move 2,3
+	idivi 4,10.
+	jumpn 4,%outda
+%outdb:	idiv 2,4
+%outdc:	addi 2,"0
+	outch 2
+	move 2,3
+	idivi 4,10.
+	jumpn 4,%outdb
+	jrst %outlp
+
+%outp:	cain 2,1.		;%P pluralize
+	 jrst %outlp
+	movei 1,"s
+%outp1:	outch 1
+	jrst %outlp
+
+%outy:	movei 1,"y		;%Y pluralize y
+	cain 2,1.
+	 jrst %outp1
+	hrroi 2,[asciz "ies"]
+	jrst %outv
+
+%oute:	jsp 5,outdmp		;%E error message
+	move 1,oujfn(fp)
+	skipn 2
+	 seto 2,
+	hrli 2,.fhslf
+	setz 3,
+	move 4,2		;Save error code in case of error
+	ERSTR%
+	  erjmp %oute1
+	  erjmp .+1
+	tlne fp,(f%str)
+	 movem 1,oubp(fp)
+	jrst %outlp
+
+%oute1:	hrroi 2,[asciz "Unknown error #"]
+	jsp 3,%outv.
+	movei 2,(4)
+	jrst %out8
+
+%outf:	skipa 3,[js%spc]	;%F long form jfns
+%outj:	 setz 3,		;%J jfns
+	jsp 5,outdmp
+	move 1,oujfn(fp)
+	JFNS%
+	tlne fp,(f%str)
+	 movem 1,oubp(fp)
+	jrst %outlp
+
+%outa:	movsi 3,(ot%nda)	;%A No day, just time
+	jrst %outt1
+%outt:	tdza 3,3		;%T Both date and time
+%outb:	 movsi 3,(ot%ntm)	;%B No time, just day
+%outt1:	tlo 3,(ot%scl)
+	skipn 2
+	  seto 2,
+	jsp 5,outdmp
+	move 1,oujfn(fp)
+	ODTIM%
+	tlne fp,(f%str)
+	 movem 1,oubp(fp)
+	jrst %outlp
+
+%outu:	jsp 5,outdmp		;%U user name
+	jumpn 2,.+3
+	  GJINF%		;No arg, use login name
+	  move 2,1
+	move 1,oujfn(fp)
+	hrli 2,500000		;Make it a user name
+	DIRST%
+	 jrst %outu1
+	tlne fp,(f%str)
+	 movem 1,oubp(fp)
+	jrst %outlp
+
+%outu1:	movei 1,"#
+	outch 1
+	jrst %out8q
+
+%outr:	jsp 5,outdmp		;%R directory name
+	skipn 2			;No arg, use connected dir
+	  GJINF%
+	hlrz 3,2		;Check lhs
+	caie 3,0		;None?
+	 cain 3,500000		;or user number?
+	  hrli 2,540000		;then use PS directory
+	move 1,oujfn(fp)
+	DIRST%
+	 jrst %outr1
+	tlne fp,(f%str)
+	  movem 1,oubp(fp)
+	jrst %outlp
+
+%outr1:	movei 1,"#
+	outch 1
+	jrst %out8h
+
+%outk:	jsp 5,outdmp		;%K chaosnet host name
+	move 5,2		;Save arg in case of error
+	movei 1,.chnns		;Number to string
+	skipn 3,2		;No arg?
+	  movei 1,.chnph	;Then primary host name
+	move 2,oubp(fp)		;CHANM% can only do string output
+	CHANM%
+	 erjmp %outk1
+	movem 2,oubp(fp)
+	jumpl fp,%outlp		;If string output, that's all
+	subi 2,oubuf(fp)	;Else update count
+	movei 1,(2)
+	imuli 1,5
+	lsh 2,-30.
+	idivi 2,7.
+	sub 2,1
+	addm 2,oucnt(fp)
+	jrst %outlp
+
+%outk1:	skipe 2,5		;Had an arg?
+	 jrst %out8		;Yes, then output it in octal
+	hrroi 2,[.byte 7	;Else use assemble-time host name
+		 repeat 1000,[
+		  ..x==<.site .rpcnt>
+		  ife ..x,.istop
+		  repeat 6,[
+		    <..x_<-30.>>+40
+		    ..x==..x_6
+		    ife ..x,.istop
+		   ]]
+		 0]
+	jrst %outv
+
+
+;Internet host name
+%outn:	jsp 5,outdmp		;%N Internet host name
+	move 5,2		;Save arg in case of error
+	skipn 3,2		;No arg?
+	  jrst [movei 1,.gthsz	;Then user local name
+		gthst%
+		 erjmp %outk1	;Punt on error
+		move 3,4	;Get local host address as arg
+		jrst .+1]
+	movei 1,.gthns		;Number to string
+	move 2,oubp(fp)		;GTHST% can only do string output
+	GTHST%
+	 erjmp %outk1		;Lossage, punt
+	movem 2,oubp(fp)
+	jumpl fp,%outlp		;If string output, that's all
+	subi 2,oubuf(fp)	;Else update count
+	movei 1,(2)
+	imuli 1,5
+	lsh 2,-30.
+	idivi 2,7.
+	sub 2,1
+	addm 2,oucnt(fp)
+	jrst %outlp
+
+
+ifn $$OUTX,[
+%outx:	jsp 5,outdmp		;%Xc extended command
+	ildb 1,inbp(fp)		;Read one more char
+	cail 1,"a		;Upcase it
+	 caile 1,"z
+	  trna
+	   trz 1,40
+	setz 5,
+%outx1:	hlrz 4,OUXTAB(5)
+	jumpe 4,[movei 2,"%
+		 outch 2
+		 movei 2,"X
+		 outch 2
+		 jrst %outl1]
+	cail 4,"a
+	 caile 4,"z
+	  trna
+	   trz 4,40
+	came 4,1
+	  aoja 5,%outx1
+	move 1,oujfn(fp)
+	hrrz 5,OUXTAB(5)
+	call (5)
+	tlne fp,(f%str)
+	  movem 1,oubp(fp)
+	jrst %outlp
+]
+	.END OUTPUT

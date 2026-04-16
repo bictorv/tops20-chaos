@@ -4,6 +4,9 @@
 *.gz
 ch2*.tpk
 ch2*.tpr
+ch2*.tps
 chaos2*.tpk
 chaos2*.tpr
+chaos2*.tps
 panda/**
+chaos.old/**

@@ -10,3 +10,12 @@ Compile MIDAS.MID with the existing MIDAS,
 get midas
 start it at PURIFY (which you can find the address of by EXAMINE PURIFY).
 save it in SYS:
+
+To compile TECO, you need a larger symbol table. 
+Consider compiling as follows:
+midas nmidas_midas/t
+SYMDSZ=11657.*2
+^Z
+
+and then purify NMIDAS and install it, and use for TECO.
+Or just compile the regular MIDAS that way.

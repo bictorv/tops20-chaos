@@ -1746,21 +1746,11 @@ ifn chaos,<
 NETCHA:	MOVE A,[POINT 7,NETSTR]	;Set pointer to JFN string
 	MOVE B,[POINT 7,[ASCIZ \CHA:\]]
 	CALL COPSTR
-	MOVE B,[POINT 7,SAVHST]	;Tack on host name
-	;;CALL COPSTR
-	;; Need to quote all dots
-	do.
-	 ildb c,b
-	 jumpe c,endlp.
-	 caie c,"."
-	 ifskp.
-	  movei c,26		;^V
-	  idpb c,a
-	  movei c,"."
-	 endif.
-	 idpb c,a
-	 loop.
-	od.
+	;; We already parsed the host name, use the address here
+	move b,host
+	movei c,^d8
+	nout%
+	 erjmp .+1
 	MOVE B,[POINT 7,[ASCIZ \.NAME\]] ;For the finger contact
 	CALL COPSTR
 	TXNE Q,FL%WHO		;Wants whois info?

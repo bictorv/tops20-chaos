@@ -179,6 +179,9 @@ CHIF3A:	MOVX T1,GJ%OLD!GJ%SHT
 	GTJFN			;DOES THE FILE EXIST?
 	IFJER.
 ifn klflg,<
+	 load t1,cpkop,(pkt)	;Get opcode
+	 cain t1,.cobrd		;Broadcast?
+	  jrst charfl		;Yes, don't complain
 	;; No program to start. Check if we already complained,
 	;; else do, and remember we did.
 	 movei t1,nocon

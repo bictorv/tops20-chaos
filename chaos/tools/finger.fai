@@ -1,0 +1,3059 @@
+;<INQUIR>FINGER.FAI;6  4-Apr-81 14:14:27, Edit by MMCM
+; Tenex assembly
+
+	title	finger - new finger program
+	search	monsym
+
+ifndef tnx,<
+ife .osfail-<sixbit /TENEX/>,<tnx==1>
+ifn .osfail-<sixbit /TENEX/>,<tnx==0>
+>
+
+ifn tnx,<
+define comnd <
+jsys .comnd##
+>
+define inqfil ' (x) <
+asciz /<INQUIR>'x/
+>
+	.requir comnd.rel
+
+opdef $pmap [pmap]
+define pmap  <call .pmap>
+>;ifn tnx
+
+ife tnx,<
+define inqfil ' (x) <
+asciz /SYS:'x/
+>
+>;ife tnx
+
+	subttl	definitions
+
+f_0					; Flags
+a_1
+b_2
+c_3
+d_4
+t_5					; Temp and tty number
+u_6					; Temp and user number
+v_7
+w_10
+x_11
+y_12
+s_13					; Sort temp
+n_14					; Ditto
+j_15					; Job index
+l_16					; Ditto
+p_17					; Pushdown pointer
+
+f%f1	__ 400000			; Temp flags
+f%f2	__ 200000
+f%f3	__ 100000
+f%f4	__ 40000
+
+f%lusr	__ 1				; Have a local user
+f%fusr	__ 2				; Have a foreign user
+f%fhst	__ 4				; Have a foreign host
+f%llnm	__ 10				; Have a local last name
+f%cmpm	__ 20				; Must use magnitude compare for sort
+f%inq	__ 40				; Use INQUIRE for personal names
+f%lnm	__ 100				; Last names file mapped
+f%alps	__ 200				; Alpha sorting need only DIRST once
+f%npok	__ 400				; Ok to use primary output (with net)
+f%lspm	__ 1000				; Fingering a lisp machine, not a regular job
+
+opdef	call	[pushj	p, 0]
+opdef	ret	[popj	p, 0]
+opdef	utype	[1B8]
+opdef	uetype	[2B8]
+opdef	uerr	[3B8]
+opdef	confm	[5B8]
+opdef	print	[6B8]
+ife tnx,<
+opdef	movslj	[016B8]
+>
+
+chaosn	__ 7				; Net numbers
+arpan	__ 12
+
+chatim	__ =7000			; Chaos net RFC timeout (7 secs)
+arptim	__ =12000			; ARPA net RFC timeout (12 secs)
+
+.mopkr	__ 27				; Symbols not yet in FAIL
+.mosrt	__ 41
+
+i.ctlg	__ 1				; interrupt enable bits
+
+ctgchn	__ =35				; interrupt numbers
+
+; Random and UUO macro definitions
+define	type	(x)			; Type out a string
+   <	utype	[asciz /x/]
+   >
+
+define	ctype	(x)			; Type out a crlf and string
+   <	utype	10, [asciz /x/]
+   >
+
+define	citype	(x)			; Type out a crlf if needed and str
+   <	utype	1, [asciz /x/]
+   >
+
+define	etype	(x)			; Evaluate and output string
+   <	uetype	[asciz /x/]
+   >
+
+define	cetype	(x)			; Same, with preceeding crlf
+   <	uetype	10, [asciz /x/]
+   >
+
+define	cietyp	(x)			; Same, but crlf only if needed
+   <	uetype	1, [asciz /x/]
+   >
+
+define	deferr	(x,y)			; Output an error string
+   <	define	x (z)
+	   <	ifidn <z>,<>,<uerr y, 0>
+		ifdif <z>,<>,<uerr y, [asciz /z/]>
+	   >
+   >
+deferr	warn,3				; Warning (%)
+deferr	jwarn,7				; Warning (%) plus jsys msg
+deferr	cerr,10				; Command error
+deferr	jcerr,14			; Command error plus jsys msg
+deferr	error,11			; Error (?)
+deferr	jerror,15			; Error (?) plus jsys msg
+deferr	fatal,12			; Halt
+deferr	jfatal,16			; Halt plus jsys msg
+
+ifn 0,<					; oh yes, it is
+; No longer in MONSYM, sigh
+define flddb. (typ,flgs,data,hlpm,defm,lst)<
+   ifidn <flgs>,<>,<..y__0>
+   ifdif <flgs>,<>,<..y__flgs>
+	..xx__<typ<=27>>+..y
+   ifdif <hlpm>,<>,<..xx_cm%hpp!..xx>
+   ifdif <defm>,<>,<..xx_cm%dpp!..xx>
+	..xx+<0,,lst>
+   ifdif <data>,<>,<data>
+   ifidn <data>,<>,<0>
+   ifdif <hlpm>,<>,<point 7,[asciz |hlpm|]>
+   ifidn <hlpm>,<>,<ifdif <defm>,<>,<0>>
+   ifdif <defm>,<>,<point 7,[asciz |defm|]>
+>
+>;ifn 0,
+
+loc	41
+	call	uuoh
+reloc
+
+	subttl	page assignment and file definitions
+
+filpag	__ 400				; First page of the file
+
+ntts	__ 400				; Max number of ttys we know about
+njbs	__ =128				; Max number of jobs we can handle
+nusrs	__ 2000				; Max number of users we know about
+ttylen	__ 6				; Length of tty location
+persln	__ 4				; Number of words for personal names
+
+maxnlm	__ 10				; Maximum number of lisp machines we can handle
+lmhlen	__ 4				; Host name length
+lmulen	__ persln			; User name length
+lmplen	__ persln			; Personal name length
+lmllen	__ ttylen			; Location length
+lmilen	__ 2				; Idle time length
+
+;; Lisp machine block format
+lmhnum	__ 0				; Host number
+lmhnam	__ lmhnum+1			; Host name
+lmunum	__ lmhnam+lmhlen		; User number, 0, or -1
+lmunam	__ lmunum+1			; User name
+lmtloc	__ lmunam+lmulen		; Location
+lmidle	__ lmtloc+lmllen		; Idle time (string)
+lmupnm	__ lmidle+lmilen		; User personal name
+lmblen	__ lmupnm+lmplen		; Total block length
+
+page0	__ filpag			; Data page for update time, etc
+pg0adr	__ page09			; Start of that data
+updatm	_ pg0adr			; First word is time of last update
+nttys	_ updatm+1			; -<n>,,<n> for ttys # in system
+njobs	_ nttys+1			; Same for jobs
+nvtlo	_ njobs+1			; First NVT in system
+nvthi	_ nvtlo+1			; Last one
+opruno	_ nvthi+1			; User number for OPERATOR
+pnvtlo	_ opruno+1			; First Pup NVT in system
+pnvthi	_ pnvtlo+1			; Last one
+cnvtlo	_ pnvthi+1			; First CHAOS NVT in system
+cnvthi	_ cnvtlo+1			; Last one
+nlispm	_ cnvthi+1			; Number of lisp machines
+lmfstr	_ nlispm+1			; Free lisp machine string
+
+ttylpg	__ filpag+5			; Start of TTYLOC data
+ttylad	_ ttylpg9
+nttypg	__ 3				; Number of pages for it
+
+usrpag	__ ttylpg+nttypg		; Start of user data
+usrper	_ usrpag9			; Start of personal names
+nperpg	__ 10
+usrtts	_ usrper+nperpg9		; TTY data for logins, etc
+usrlgi	_ usrtts+nusrs
+usrlgo	_ usrlgi+nusrs
+usrdet	_ usrlgo+nusrs
+usratt	_ usrdet+nusrs
+nuspgs	__ nusrs-9*<nperpg+4+1>
+
+jobpag	__ usrpag+nuspgs		; Start of job data
+jobbsz	__ =128				; Size of blocks in file
+jobadr	_ jobpag9
+jobuno	_ jobadr			; User number
+jobdno	_ jobuno+jobbsz			; Dir number
+jobtno	_ jobdno+jobbsz			; TTY state,,TTY #
+jobidl	_ jobtno+jobbsz			; Idle time (ms)
+jobfks	_ jobidl+jobbsz			; # forks,,working size
+jobpct	_ jobfks+jobbsz			; % of machine (long,,short)
+jobpnm	_ jobpct+jobbsz			; Program name
+jobrt	_ jobpnm+jobbsz			; Runtime
+jobltd	_ jobrt+jobbsz			; TIME of user login
+njbpgs	__ 3
+
+usgpag  __ jobpag+njbpgs		; page for TTY usage data
+nusgs	__ usgpag9			; Number of times thru usage loop
+nuptty	__ nusgs+1			; Per TTY table
+
+usgend	__ nuptty+ntts
+nusgpg	__ 1
+ifg usgend-nusgs-nusgpg9,<.fatal Not enough space for USG data in file>
+
+tidpag	__ usgpag+nusgpg		; TTY idleness
+ttidle	__ tidpag9
+ntidpg	__ 1
+
+lmpage	__ tidpag+ntidpg		; Lisp machine data
+lmdata	__ lmpage9
+nlmpgs	__ (lmblen*maxnlm+777)-9	; Number of pages needed
+
+pagez	__ lmpage+nlmpgs		; Last page of data file
+npages	__ pagez-filpag
+
+lnmpag	__ 300				; First page of last name data
+lnmadr	__ lnmpag9
+mlnmpg	__ 30				; Max # of pages to map in
+
+tmpadr	__ 100000			; Temporary pages
+sortad	__ 200000			; Table used by sort routine
+planpg	__ 200				; Plan file gets mapped here
+planad	__ 200000			; Address of above
+hstadr	__ 202000			; Place to map HOSTS2
+
+; Data for INQUIRE entry
+strsiz	__ 77				; Maximum size of each field
+remsiz	__ 7777				; Remark is bigger
+sizmxz	__ 3				; Five spare fields
+numfld	__ 17				; Number of fields in use
+maxfld	__ 22				; Twenty two possible fields (8)
+
+; Fields
+$dname	__ 0				; Directory name
+$hname	__ 1				; Human name
+$nname	__ 2				; Nick name
+$waddr	__ 3				; Work address
+$wphon	__ 4				; Work phone
+$haddr	__ 5				; Home address
+$hphon	__ 6				; Home phone
+$naddr	__ 7				; Network address
+$brday	__ 10				; Birthday
+$super	__ 11				; Supervisor's name
+$projn	__ 12				; Project name
+$accnt	__ 13				; Account
+$relat	__ 14				; Relationship
+$remrk	__ 15				; Remark
+$altby	__ 16				; Altered by
+
+; Last name file format
+
+; Header block
+l$name	__ 0				; sixbit /LSTNAM/
+l$ctad	__ 1				; TAD of last change
+l$gtad	__ 2				; TAD of last regeneration
+l$flgs	__ 3				; Flags
+ l%regn	__ 1				; File should be regenerated
+;
+l$sptr	__ 5				; Start of pointers (rel to file)
+l$sstr	__ 6				; Start of strings (rel to file)
+l$ladr	__ 7				; Highest used address
+
+comment	%
+	The first word of pointers contains the size of the pointer 
+	table.  The rest of it is words of the form <dir #>,,<address>
+	where address is the address of a string relative to the start
+	of string space.  Strings must be uppercase and fully padded
+	with 0s.
+	%
+
+	subttl	impure storage
+
+npdl	__ 177
+pdl:	block	npdl
+uuoacs:	block	20
+lev1pc:	0
+lev2pc:	0
+lev3pc:	0
+
+
+strbsz	__ 100
+strbuf:	block	strbsz
+atmbsz	__ 20
+atmbuf:	block	atmbsz
+abuf:	block	40			; Random buffers
+bbuf:	block	40
+
+cmdblk:	cm%wkf!cm%xif+repars		; Wake on every field and no @<file>
+	.priin,,.priou
+	point	7, [asciz /@/]
+	point	7, strbuf
+	point	7, strbuf
+	5*strbsz
+	0
+	point	7, atmbuf
+	5*atmbsz
+	0
+
+; Function block for host name
+nfdblk:	<.cmkey>=<35-8>+cm%hpp
+namtab:	0				; This word gets set by HSTINI
+	-1,,[asciz /Host name/]
+	0
+
+lastus:	-1				; Last user typed
+zrovar::				; Beginning of command variables
+backgp:	0				; Print local users background plans
+whois:	0				; Print whois information
+terse:	0				; Print nothing but jobs logged in
+intrst:	0				; Print interesting jobs only
+operok:	0				; OPERATOR jobs are alright
+detok:	0				; Detached jobs are alright
+percnt:	0				; Print %-age of machine
+idchdr:	0				; Ptr to idle/percentage/connect column hdr
+idchnd:	0				; Routine to handle idle/per/conn column
+todclk:	0				; TIME of finger start
+sort:	0				; Sort algorithm to use
+lusr:	0				; Local user number
+host:	0				; Set of foreign hosts or -1
+errret:	0				; Settable error return
+lispm:	0				; Include lisp machines
+flispm:	0				; Print free lisp machines
+malfdb::				; Reuse for MAIL check too
+fhstr:	block	atmbsz			; Name of a single foreign host
+fustr:	block	atmbsz			; Foreign user name
+zrvend	__ .-1				; End of command variables
+
+netin:	0				; Network input jfn
+netout:	0				; And output
+netfp:	0				; -1 if network finger
+chajfn:	0				; JFN of Chaos connection
+chafp:	0				; -1 if on Chaos
+arphos:	0				; Host numbers from HOSTS2
+chahos:	0
+maljfn:	0				; MAIL.TXT jfn for the guy
+plnjfn:	0				; PLAN.TXT jfn for luser
+nplans:	0				; USW from plan file
+now:	0				; GTAD for now
+nowtim:	0				; Secs since midnight
+nowday:	0				; Day of month
+nowkdy:	0				; Weekday
+bakbts:	0				; Bit mask of background plans
+bkbts2:	0				; Bit mask of background plans to type
+inqjfn:	0				; JFN for INQUIRE database
+ctgcnt:	0				; number of ^G's typed
+lclnam:	block	20			; Local site name and number
+lclsit:	0
+
+chapkt:	block	1000			; Block for reading raw packet
+
+ibuf:					; Beginning of individual buffers
+dname:	block	strsiz/5+1		; Directory name
+hname:	block	strsiz/5+1		; Human name
+nname:	block	strsiz/5+1		; Nick name
+waddr:	block	strsiz/5+1		; Work address
+wphon:	block	strsiz/5+1		; Work phone
+haddr:	block	strsiz/5+1		; Home address
+hphon:	block	strsiz/5+1		; Home phone
+naddr:	block	strsiz/5+1		; Network address
+brday:	block	strsiz/5+1		; Birthday
+super:	block	strsiz/5+1		; Supervisor's name
+projn:	block	strsiz/5+1		; Project name
+relat:	block	strsiz/5+1		; Relation
+accnt:	block	strsiz/5+1		; Account
+remrk:	block	remsiz/5+1		; Remark
+altby:	block	strsiz/5+1		; Altered by
+ibufz	__ .-1				; End
+
+varsz	__ strsiz*maxfld		; Max size of variable area
+
+blkadr:	0				; Length,,address of block in file
+blkdir:	0				; Directory number of block
+
+buf:
+	date:	0			; Date and time last altered
+	sizmx:	block	sizmxz		; Size matrix
+	var:	block	varsz		; Variable area
+
+	subttl	pure storage
+
+levtab:	lev1pc
+	lev2pc
+	lev3pc
+
+chntab:	0				; 0
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0				; 10
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0				; 20
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0
+	0				; 30
+	0
+	0
+	0
+	0
+	3,,[	aos	ctgcnt
+		debrk ]
+
+switab:	swilen,,swilen			; Command switches
+;;;;;	[asciz /%:/],,[swipct]
+	[asciz /background-plans/],,[backgp,,setswi]
+	[asciz /connect-time/],,[concol]
+	[asciz /detached/],,[detok,,setswi]
+	[asciz /free-lisp-machines/],,[flispm,,setswi]
+	[asciz /interesting/],,[intrst,,setswi]
+	[asciz /lisp-machines/],,[lispm,,setswi]
+	[asciz /operator/],,[operok,,setswi]
+	[asciz /percentage:/],,[swipct]
+	[asciz /sort:/],,[swisrt]
+	[asciz /terse/],,[terse,,setswi]
+	[asciz /whois/],,[whois,,setswi]
+swilen	__ .-switab-1
+
+pcttab:	pctlen,,pctlen			; Values for /% switch
+	[asciz /long/],,[hlrz 2,jobpct(j)]
+	[asciz /short/],,[hrrz 2,jobpct(j)]
+pctlen	__ .-pcttab-1
+
+sortab:	srtlen,,srtlen			; Values of /SORT switch
+	[asciz /alphabetical/],,[srtalp,,0]
+	[asciz /connect-time/],,[srtcon,,concol]
+	[asciz /idle-time/],,[srtidl,,0]
+	[asciz /job-number/],,[srtjob,,0]
+	[asciz /percentage/],,[srtpct,,0]
+	[asciz /runtime/],,[srtrt,,0]
+	[asciz /subsystem/],,[srtsub,,0]
+	[asciz /tty-number/],,[srttty,,0]
+srtlen	__ .-sortab-1
+
+hsttab:	hstlen,,hstlen			; Hostname possibilities
+	[asciz /*/],,[[asciz /MIT-XX/]
+		      [asciz /MIT-EE/]
+		      [asciz /MIT-SPEECH/]
+		      [asciz /MIT-AI/]
+		      [asciz /MIT-MC/]
+		      [asciz /MIT-ML/]
+		      [asciz /MIT-DMS/]
+		      [asciz /OFFICE-1/]
+		      [asciz /SRI-KA/]
+		      [asciz /SRI-KL/]
+		      [asciz /SU-AI/]
+		      [asciz /CMU-10A/]
+		      [asciz /CMU-10B/]
+		      [asciz /CMU-20C/]
+		      [asciz /SU-SCORE/]
+			0]
+	[asciz /cadrs/],,[[asciz /CADR-1/]
+			  [asciz /CADR-2/]
+			  [asciz /CADR-3/]
+			  [asciz /CADR-4/]
+			  [asciz /CADR-5/]
+			  [asciz /CADR-6/]
+			  [asciz /CADR-7/]
+			  [asciz /CADR-8/]
+			  [asciz /CADR-9/]
+			  [asciz /CADR-10/]
+			  [asciz /CADR-11/]
+			  [asciz /CADR-12/]
+			  [asciz /CADR-13/]
+			  [asciz /CADR-14/]
+			  [asciz /CADR-15/]
+			  [asciz /CADR-16/]
+			  [asciz /CADR-17/]
+			  [asciz /CADR-18/]
+			  [asciz /CADR-19/]
+			  0]
+	[asciz /mit/],,[[asciz /MIT-AI/]
+		      [asciz /MIT-MC/]
+		      [asciz /MIT-ML/]
+		      [asciz /MIT-DMS/]
+		      [asciz /MIT-XX/]
+		      [asciz /MIT-EE/]
+		      [asciz /MIT-SPEECH/]
+			 0]
+	[asciz /sri/],,[[asciz /SRI-KA/]
+		        [asciz /SRI-KL/]
+			  0]
+hstlen	__ .-hsttab-1
+
+; Pointers for INQUIR entry
+pntrs:					; Beginning of pointer table for sizmx
+dnamep:	point	6, sizmx+0, 5		; Directory name
+hnamep:	point	6, sizmx+0, 11		; Human name
+nnamep:	point	6, sizmx+0, 17		; Nick name
+waddrp:	point	6, sizmx+0, 23		; Work address
+wphonp:	point	6, sizmx+0, 29		; Work phone
+haddrp:	point	6, sizmx+0, 35		; Home address
+hphonp:	point	6, sizmx+1, 5		; Home phone
+naddrp:	point	6, sizmx+1, 11		; Network address
+brdayp:	point	6, sizmx+1, 17		; Birthday
+superp:	point	6, sizmx+1, 23		; Supervisor's name
+projnp:	point	6, sizmx+1, 29		; Project name
+accntp:	point	6, sizmx+1, 35		; Account
+relatp:	point	6, sizmx+2, 5		; Relationship
+remrkp:	point	12, sizmx+2, 17		; Remark
+altbyp:	point	6, sizmx+2, 23		; Altered by
+
+ibufp:					; Pointers to individual buffers
+	point	7, dname		; Directory name
+	point	7, hname		; Human name
+	point	7, nname		; Nick name
+	point	7, waddr		; Work address
+	point	7, wphon		; Work phone
+	point	7, haddr		; Home address
+	point	7, hphon		; Home phone
+	point	7, naddr		; Network address
+	point	7, brday		; Birthday
+	point	7, super		; Supervisor's name
+	point	7, projn		; Project name
+	point	7, accnt		; Account
+	point	7, relat		; Relationship
+	point	7, remrk		; Remark
+	point	7, altby		; Altered by
+
+icpskt:	117				; Socket for network finger
+crlf:	byte (7) 15, 12, 0
+crlfi:	point	7, crlf
+filnam:	inqfil(CERBERUS.PMAP)		; Data file
+inqnam:	inqfil(PEOPLE.DATA)		; INQUIRE data file
+headr:	asciz	/ User    Name                Job Subsys /
+headr2:	asciz	/ TTY Console Location/
+bkphdr:	asciz	/
+Background Plans:
+ #	Expire date		Name
+/
+
+	subttl	init and get command line
+
+entvec:	jrst	go			; Normal entry point
+	jrst	go
+	byte (3) 1 (9) 1 (6) 1 (18) 1	; Fake version number
+	jrst	perngo			; Personal name lookup
+	jrst	netgo			; Entry point for network finger
+	jrst	chago			; Entry for chaos finger
+
+perngo:	reset
+	move	p, [iowd npdl, pdl]
+	movsi	1, (rc%emo)		; See if a real user
+	hrroi	2, 777000
+	rcusr
+	setzm	777000
+	tlne	1, (rc%nom)
+	 haltf
+	move	u, 3			; Save user number
+	call	filini
+	hrroi	a, 777000
+	call	pernam
+	haltf
+
+chago:	reset
+	move	p, [iowd npdl, pdl]
+	setom	netfp			; Say network
+	setom	chafp			; Chaos, to be precise
+	call	chalst			; Open net connection
+	move	1, [point 8, [byte (8) 215, 0]]
+	movem	1, crlfi
+	jrst	netgo1
+
+netgo:	reset
+	move	p, [iowd npdl, pdl]	; Setup stack, etc
+	setom	netfp			; Say this is a network finger
+netgo1:	setom	lispm			; Default is to list lisp machines
+	movei	1, "F"			; Supply part that wasnt typed
+	idpb	1, cmdblk+.cmptr
+	movei	1, " "
+	idpb	1, cmdblk+.cmptr
+	sos	cmdblk+.cmcnt		; And count for two fewer chars
+	sos	cmdblk+.cmcnt
+	movei	1, cmdblk
+	skipe	chafp			; Chaos?
+	 call	chajcl			; Yes, get string from RFC
+	jrst	gtcusr			; And go get user right away
+
+go:	reset
+	move	p, [iowd npdl, pdl]
+	movei	1, .fhslf
+	move	2, [levtab,,chntab]	; set up for ^G interrupt
+	sir
+	eir
+	movei	2, i.ctlg
+	aic
+	move	1, [.ticcg,,ctgchn]
+	ati
+ife tnx,<
+	setz	1,			; Get part eaten by EXEC
+	rscan
+	 tdn
+>
+ifn tnx,<
+	getnm
+	move	2, 1
+	move	3, cmdblk+.cmptr
+gtnam1:	jumpe	2, gtnam2
+	setz	1,
+	lshc	1, 6
+	addi	1, 40
+	idpb	1, 3
+	aos	cmdblk+.cminc
+	jrst	gtnam1
+
+gtnam2:	movei	1, .priin		; Get terminator character
+	bkjfn
+	 jfcl
+>
+
+repars:	setzb	f, zrovar		; Start of variables to clear
+	move	1, [zrovar,,zrovar+1]
+	blt	1, zrvend		; Clear out command variables
+	setom	lispm
+	movei	1, cmdblk		; Here on reparse
+	movei	2, [flddb. .cmkey,,initab] ; How were we invoked?
+	comnd
+	tlne	1, (cm%nop)
+	 error	(Command error)
+	hrrz	2, (2)
+	skipe	2
+	 setom	whois			; Print moby info
+	jrst	gtcusr
+
+gtcusr:	call	idlcol			; Default idle/%/conn column is idleness
+gtcus1:	movei	1, cmdblk
+	movei	2, [flddb. .cmusr,,,,,<[
+		    flddb. .cmswi,,switab,,,<[
+		    flddb. .cmtok,cm%sdh,<-1,,[asciz /@/]>,<@<host name>>,,<[
+		    flddb. .cmcfm]>]>]>]
+	comnd
+	tlne	1, (cm%nop)
+	 jrst	gtfusr			; User at foreign host or last name
+gtcmnd:	ldb	4, [point 9, (3), 8]	; Get field type used
+	cain	4, .cmusr		; Local user?
+	 jrst	gtlusr			; Yes, check for confirmation
+	cain	4, .cmswi
+	 jrst	gtswit			; Process switch
+	cain	4, .cmtok		; "@"?
+	 jrst	gtfhst			; Yes, go get host name
+	jrst	finger			; Must be confirm, finished with line
+
+initab:	2,,2
+	[asciz /finger/],,0
+	[asciz /whois/],,1
+
+gtfusr:	movei	2, [flddb. .cmfld]
+	comnd
+	move	2, [atmbuf,,fustr]
+	blt	2, fustr+atmbsz-1	; Save foreign user string
+gtfus2:	tro	f, f%fusr		; Have a foreign user or last name
+	movei	2, [flddb. .cmtok,cm%sdh,<-1,,[asciz /@/]>,<@<host name>>,,<[
+		    flddb. .cmswi,,switab,,,<[
+		    flddb. .cmcfm]>]>]
+	comnd
+	tlne	1, (cm%nop)
+	 error	<Eh>			; For lack of anything better
+	ldb	4, [point 9, (3), 8]	; Get field type used
+	caie	4, .cmswi
+	cain	4, .cmcfm		; Just CR?
+	 jrst	gtlnam			; Must be a last name
+gtfhst:	call	hstini			; Was an @, init table of hosts
+	tro	f, f%fhst		; Have a foreign host
+	movei	1, cmdblk
+	movei	2, [flddb. .cmkey,,hsttab,<Host set>,<*>,nfdblk]
+	comnd
+	tlne	1, (cm%nop)
+	 error	(Bad host name)
+	hrrz	2, (2)			; Get keyword value
+	hrrz	3, .cmdat(3)		; Get table that we used
+	cain	3, hsttab		; Was it a set?
+	 hrros	2			; Yes, mark it as such
+	movem	2, host			; Save the host index
+repeat	0,<				; Would you believe?
+	ldb	2, [point 7, atmbuf, 6]
+	caie	2, "*"
+	 jrst	gtccfm
+	ibp	cmdblk+.cmptr
+	sos	cmdblk+.cminc		; Need to fake COMND out
+>
+	camn	2, lclsit		; Really local?
+	 jrst	[trz f,f%fhst
+		 trne f,f%fusr
+		  tro f,f%llnm
+		 jrst .+1]
+	jrst	gtccfm			; Go confirm the command
+
+gtlnam:	tro	f, f%llnm		; Say we got local last name
+	caie	4, .cmcfm		; We get here with a CR?
+	 jrst	gtccfm			; No, get one
+	jrst	gtcmnd			; Yes, go parse some more
+
+gtswit:	hrrz	2, (2)			; Get switch location
+	move	2, (2)
+	call	(2)			; Set the switch given
+	trne	f, f%lusr!f%fusr!f%fhst	; Have anything yet?
+	 jrst	gtccfm			; Yes, go confirm then
+	jrst	gtcus1			; No, go get more commands
+
+gtlusr:	tro	f, f%lusr		; Have a local user
+	movem	2, lusr			; Save local user number
+gtccfm:	movei	1, cmdblk
+	movei	2, [flddb. .cmswi,,switab,,,<[
+		    flddb. .cmcfm]>]
+	comnd
+	tlnn	1, (cm%nop)		; Was it used?
+	 jrst	gtcmnd			; No, ok, go process it then
+	trne	f, f%lusr		; Have a local user?
+	trne	f, f%fusr!f%fhst	; And nothing else
+	 error	(Not confirmed)		; No, barf then
+	push	p, 1
+	hrroi	1, fustr		; Set up string from local name
+	move	2, lusr
+	dirst
+	 setzm	fustr
+	pop	p, 1
+	jrst	gtfus2
+
+setswi:	hlrz	2, 2			; Get one to set
+	setom	(2)			; Set it
+	ret
+
+swipct:	tlnn	1, (cm%swt)		; Wanted a value?
+	 jrst	swipc1			; No, default it then
+	movei	2, [flddb. .cmkey,,pcttab,,<SHORT>]
+	comnd
+	tlne	1, (cm%nop)
+	 error	(Bad switch value)
+	hrrz	2, (2)			; Get value
+	skipa	2, (2)			; And function to use
+swipc1:	 move	2, [hrrz 2, jobpct(j)]	; Default it
+	movem	2, percnt		; Set it up
+	call	percol			; Set up the column stuff too
+	ret
+
+swisrt:	tlnn	1, (cm%swt)		; Given with a value?
+	 jrst	swisr1			; No, use default then
+	movei	2, [flddb. .cmkey,,sortab,,<ALPHABETICAL>]
+	comnd
+	tlne	1, (cm%nop)
+	 error	(Bad switch value)
+	skipa	1, (2)			; Get value to use
+swisr1:	 movei	1, [srtalp,,0]		; Default is alphabetical
+	hlrz	2, (1)			; Get sort routine to use
+	hrrzm	2, sort			; Set it up
+	hrrz	2, (1)			;  and any setup routine
+	skipe	2			; Anything?
+	 call	(2)			; Yes, do it
+	ret
+
+	subttl	main program
+
+finger:	trne	f, f%fhst		; Have a foreign host?
+	 jrst	netfng			; Yes, go do network finger then
+	time				; get 'now' (for connect time figgerin')
+	movem	1, todclk		; TIME of finger startup
+	call	filini			; Read in the data file and check it
+	trne	f, f%llnm		; Local last name?
+	 jrst	lnmfng			; Yes, do the right things
+	skipe	u, lusr			; Want a specific user?
+	 jrst	user			; Yes, do him then
+
+	hrroi	1, headr
+	psout				; Type header
+	move	1, idchdr		; Get idle/percentage/connect
+	psout
+	hrroi	1, headr2
+	psout
+	move	1, crlfi
+	psout
+
+	skipe	s, sort			; Is there an algorithm yet?
+	 jrst	srtjob			; Yes, use it then
+	movei	s, srtalp		; Default default algorithm
+	skipe	percnt			; Are we /%?
+	 movei	s, srtpct		; Yes, then that is default
+	movem	s, sort			; No, set this up then
+srtjob:	caie	s, srtjob		; Sort by job number is easy for us
+	 jrst	sortit			; Otherwise must go do some work
+	hllz	j, njobs		; Pointer to jobs
+	skipl	jobrt(j)		; Job exists?
+	 call	fngjob			; Do this one
+	aobjn	j, .-2			; For all jobs
+
+jobdon:	skipn	lispm
+	 jrst	done			; Done
+
+dolms:	tro	f, f%lspm
+	setom	lastus			; These may not be exactly the same
+	move	j, nlispm
+	imuli	j, lmblen
+dolms1:	subi	j, lmblen
+	jumpl	j, dolms2
+	skipe	u, lmdata+lmunum(j)	; Not logged in
+	 camn	u, [-1]			; Or not responding?
+	 jrst	dolms1
+	call	prtlmj			; Print it out
+	jrst	dolms1
+
+dolms2:	skipn	flispm			; Print free lisp machine status?
+	 jrst	done
+	hrroi	1, lmfstr
+	call	$psout
+	call	crlf0
+	jrst	done
+
+prtlmj:	call	prtjb0			; Start it out
+	movei	2, lmdata+lmhnam(j)
+	push	p, 2
+	hrli	2, (<point 7, 0>)
+	movei	3, 6
+	ildb	4, 2
+	jumpe	4, .+2
+	soja	3, .-2			; Compute length of host name
+	pop	p, 2
+	push	p, 3
+	skiple	3
+	 setz	3,			; If less than 6, pretend is 6
+	addi	3, 4
+	movei	4, " "
+	idpb	4, 1
+	sojg	3, .-1
+	call	movstr			; Now the name itself
+	pop	p, 3
+	skipge	3			; If more than 6, pretend is 6	
+	 setz	3,
+	addi	3, 1
+	movei	4, " "
+	idpb	4, 1
+	sojg	3, .-1
+
+	move	2, idchnd
+	caie	2, prtjbi		; Is it idle time we want?
+	 jrst	[movei	2, [asciz /    /]
+		 jrst prtlmi]
+	movei	2, lmdata+lmidle(j)
+	push	p, 2
+	hrli	2, (<point 7,0>)
+	movei	3, 4
+	ildb	4, 2
+	jumpe	4, .+2
+	soja	3, .-2
+	pop	p, 2
+	jumpl	3, [movei 2, [asciz /*:**/]
+		    jrst prtlmi]
+	jumpe	3, prtlmi
+	movei	4, " "
+	idpb	4, 1
+	sojg	3, .-1
+prtlmi:	call	movstr
+	jrst	prtpsp
+
+fngjob:	move	u, jobuno(j)		; get user
+	skipn	operok			; ignore operator jobs?
+	 came	u, opruno		; no, match?
+	 caia				; ok to print
+cpopj:	 ret				; operator, ignore it
+	hrre	t, jobtno(j)		; terminal number
+	skipn	detok			; detached jobs ok?
+	 jumpl	t, cpopj		; no, forget it if so
+	skipn	intrst			; wants just interesting?
+	 jrst	prtjob			; no, print it then
+	move	1, jobrt(j)		; get runtime
+	camge	1, [^d<60*60*1000>]	; more than an hour cpu used?
+	 skipn	jobuno(j)		; or not logged in?
+	 jrst	prtjob			; that sounds interesting
+	hrrz	1, jobpct(j)		; short term percentage
+	caile	1, =100			; more than 10% of the machine?
+	 jrst	prtjob			; that too
+	move	2, jobpnm(j)		; get its jobname
+intpnm:	setz	1,
+	lshc	1, 6			; get next char of name
+	jumpe	1, intpn2		; spaces are ok
+	cail	1, 'a'			; else anything but ...
+	 caile	1, 'z'			; a-z
+	 jrst	prtjob			; sounds interesting
+intpn2:	jumpe	2, cpopj		; no more of the name left, yawn
+	jrst	intpnm			; keep looking for something in it
+
+sortit:	call	(s)			; sort out jobs
+	movei	s, (a)			; value returned here
+srtjb1:	move	j, 2(s)			; get job pointer
+	andi	j, 777
+	call	fngjob			; do this job
+	skipge	s, (s)			; get next in list
+	 jrst	jobdon			; none, that's it
+	jrst	srtjb1			; do it
+
+; do a single user
+user:	hllz	j, njobs		; get a pointer to jobs
+fndusr:	skipl	jobrt(j)		; job exists?
+	 came	u, jobuno(j)		; same user?
+	 jrst	fndunx			; nope, try next then
+	tlo	f, f%f1			; say we have printed one for him
+	call	prtjob			; print this job out
+fndunx:	aobjn	j, fndusr		; for all jobs
+
+; look for the single user on lisp machines
+userlm:	skipn	lispm			; Ok to print lisp machines?
+	 jrst	user7
+	move	j, nlispm
+	imuli	j, lmblen
+uslms1:	subi	j, lmblen
+	jumpl	j, user7
+	came	u, lmdata+lmunum(j)	; Same user?
+	 jrst	uslms1
+	tlo	f, f%f1			; This counts as printing him out
+	tro	f, f%lspm
+	call	prtlmj			; Print it out
+	jrst	uslms1
+
+user7:	tlne	f, f%f1			; did we print one out?
+	 jrst	user5			; yes, go see about mail, etc
+	call	prtjb0			; set up username, etc
+	call	prtjbe			; print last logout stuff
+
+user5:	skipe	netfp			; for network
+	 skipe	whois			; no more info unless /w
+	 skipe	terse			; else only suppress for /terse
+	 jrst	user6			; skip mail and plan stuff
+	move	1, [point 7, strbuf]
+ife tnx,<
+	movei	2, [asciz /PS:</]	;>
+>
+ifn tnx,<
+	movei	2, "<"			;>
+	idpb	2, 1
+>
+	call	movstr
+	move	2, u
+	dirst
+	 jrst	doplan			; no mail
+ife tnx,<	;<
+	movei	2, [asciz />MAIL.TXT.1/]
+>
+ifn tnx,<	;<
+	movei	2, [asciz />MESSAGE.TXT.1/]
+>
+	call	movst0
+	movsi	1, (gj%old!gj%del!gj%sht)
+	hrroi	2, strbuf
+	gtjfn
+	 jrst	doplan
+	movem	1, maljfn		; Save it for later
+	move	2, [.fbref,,.fbctl]
+	movei	3, malfdb+.fbctl
+	gtfdb
+	 erjmp	doplan
+	movsi	2, (fb%del)		; See if deleted
+	tdne	2, malfdb+.fbctl
+	 jrst	nomail			; No new mail if so
+	move	2, malfdb+.fbwrt	; Write date
+	camg	2, malfdb+.fbref	; Written since last read?
+	 jrst	nomail			; No new mail
+	hrli	1, .gflwr		; Last writer
+	hrroi	2, atmbuf
+	gfust
+	movsi	1, (rc%emo)		; See if a real user
+	hrroi	2, atmbuf
+	rcusr
+	move	3, 1			; Save resultant flags
+	call	malini			; Init buffer for mail message
+	movei	2, [asciz /new /]
+	tlne	3, (rc%nom!rc%amb)	; Was it a user?
+	 movei	2, [asciz /net/]	; Yes
+	call	movstr
+	movei	2, [asciz /mail from /]
+	call	movstr
+	movei	2, atmbuf
+	call	movstr
+	movei	2, [asciz / at /]
+	call	movstr
+	move	2, malfdb+.fbwrt	; Write time
+	movsi	3, (ot%day!ot%nsc!ot%scl)
+	odtim
+	movei	2, [asciz /,
+/]
+	call	movstr
+	jrst	malfin			; Go finish up the message
+
+malini:	call	crlf0
+	move	1, [point 7, strbuf]	; String space
+	move	2, u			; User again
+	dirst
+	 trn
+	movei	2, [asciz / has /]
+	jrst	movstr
+
+nomail:	call	malini			; Init the buffer
+	movei	2, [asciz /no new mail, /]
+	call	movstr
+
+malfin:	skipn	malfdb+.fbref		; Ever read?
+	 jrst	[movei	2, [asciz /never read
+/]
+		 jrst	malfn2]		; No, say never
+	movei	2, [asciz /last read /]
+	call	movstr
+	move	2, malfdb+.fbref
+	movsi	3, (ot%day!ot%nsc!ot%scl)
+	odtim
+malfn2:	setz	2,			; Terminate string
+	idpb	2,1
+	hrroi	1,strbuf
+	call	$psout
+	move	1, maljfn		; The jfn again
+	rljfn
+	 trn
+
+
+	subttl	plan stuff
+
+doplan:	move	1, [point 7, strbuf]	; Place for string
+ife tnx,<
+	movei	2, [asciz /PS:</]	;>
+>
+ifn tnx,<
+	movei	2, "<"			;>
+	idpb	2, 1
+>
+	call	movstr
+	move	2, lusr
+	dirst
+	 jfcl				;<
+	movei	2, [asciz />PLAN.TXT/]
+	call	movst0
+	movsi	1, (gj%old!gj%sht)
+	hrroi	2, strbuf
+	gtjfn
+	 jrst	noplan			; Doesnt have any plan
+	movei	2, of%rd
+	openf
+	 jrst	noplan
+	movem	1, plnjfn		; Save away jfn
+	move	2, [1,,.fbusw]		; Number of plans
+	movei	3, n
+	gtfdb
+	jumpe	n, noplan		; If no plans, say so
+	hrlzs	1
+	move	2, [.fhslf,,planpg]	; Map it in
+	movsi	3, (pm%rd)
+	pmap
+
+	tlz	f, f%f1!f%f2		; No plans typed yet
+	seto	2,
+	setzb	4, bakbts		; Also reset background bits
+	odcnv				; Get now
+	aobjn	3, .+1			; PLAN is wedged about days of the week
+	hlrzm	3, nowday		; Day of he month (1 = 1st)
+	hrrzm	3, nowkdy		; Day of the week (1 = monday)
+	hrrzm	4, nowtim		; Secs since midnite
+	movem	n, nplans		; Save plan numbers
+	hlrz	l, n			; Get start of plan data
+	movsi	n, -1(n)
+	tlc	n, -1			; Make aobjn pointer to plan data
+
+; See if this plan is valid
+chkpln:	movsi	1, 200000		; Special time bit
+	tdnn	1, planad(l)		; Is this plan special?
+	 jrst	chkpl2			; No, just check against now
+	hrrz	1, planad+1(l)		; Secs since midnite of start of plan
+	move	2, nowtim		; And secs now
+	cail	2, (1)			; Now before plan starts?
+	 cail	2, planad+2(l)		; Or not before plan ends?
+	 jrst	nxtpln			; Yes, move to next one then
+	hlrz	1, planad+1(l)		; Get format field
+	andi	1, 177
+	trze	1, 100			; Just day of the month?
+	 jrst	chkpl1			; No, maybe any day
+	camn	1, nowday		; Right day of the month?
+	 jrst	okplan			; Yes, go do it
+	 jrst	nxtpln			; Nope, no good
+chkpl1:	jumpe	1, okplan		; Just time of day, matches
+	andi	1, 7			; Get desired day of the week
+	came	1, nowkdy		; Right one?
+	 jrst	nxtpln			; Nope, no good
+	ldb	1, [point 3, planad+1(l), 14]	; Get desired week of the month
+	soje	1, okplan		; Any week will do?
+	move	2, nowday		; Get current day of the month
+	idivi	2, 7
+	cain	2, (1)			; Matches?
+	 jrst	okplan			; Yes, go do it
+	jrst	nxtpln			; Nope, try next one
+chkpl2:	move	1, now			; Not special, get today
+	caml	1, planad+1(l)		; Before beginning?
+	 caml	1, planad+2(l)		; Or not before end?
+	 jrst	nxtpln			; Yes, move to next one then
+
+; A plan whose time has come
+okplan:	skipge	planad(l)		; Is this a background plan?
+	 jrst	okback			; Yes, handle it specially
+	tlo	f, f%f1			; Say we've typed one out
+	call	typlan			; And do it
+	jrst	nxtpln			; And go do the next one
+okback:	skipn	netfp			; Network people cant interact
+	 skipn	backgp			; Others must ask nicely
+	 jrst	nxtpln			; So ignore background plans
+	movni	2, (n)
+	movsi	1, 400000
+	lsh	1, (2)
+	iorm	1, bakbts		; Set the bit for this guy
+nxtpln:	addi	l, 3			; Point to next set of data
+	aobjn	n, chkpln		; And go check the next one
+	hrroi	1, [asciz /
+[No current plan]
+/]
+	tlnn	f, f%f1			; Any plan typed?
+	 call	$psout
+
+	push	p, bakbts
+chkbck:	skipn	n, bakbts		; Any more background to handle?
+	 jrst	chkbk2			; No, maybe done
+	call	numpln
+	andcam	1, bakbts
+	hrroi	1, bkphdr		; Background plan header
+	tlon	f, f%f2			; Say we have done a background one
+	 call	$psout			; Type header first time around
+	movei	1, .priou
+	movei	2, 1(n)			; Plan number
+	move	3, [no%lfl+2b17+=10]
+	nout
+	 trn
+	movei	1, 11
+	pbout				; Tab first
+	call	pexptm			; Type expiration time
+	movei	2, 11
+	bout
+	hlrz	2, planad(l)		; Pointer to message
+	andi	2, 177777
+	adjbp	2, [point 7, planad]
+	hrrz	3, planad(l)		; Dont go over the end
+	movei	4, 12			; Until the CRLF
+	sout
+	jrst	chkbck
+chkbk2:	pop	p, bakbts		; Get back which ones are background
+	tlnn	f, f%f2			; Any background plans?
+	 jrst	didpln			; Nope, all done with plan stuff (!)
+
+; Now handle background plans
+doback:	move	1, crlfi
+	psout
+	hrroi	1, [asciz /List of background plans to see (CR for none): /]
+	movem	1, cmdblk+.cmrty
+	movei	1, backrp		; Reparse address
+	hrrm	1, cmdblk
+dobak1:	movei	1, cmdblk
+	movei	2, [flddb. .cmini]
+	comnd				; Reset the command stuff
+backrp:	setzm	bkbts2			; Reset ones to type out
+backlp:	movei	2, [flddb. .cmcfm,,,,,<[
+		    flddb. .cmnum,,=10]>]
+	comnd
+	tlne	1, (cm%nop)		; Badness?
+	 jrst	bakerr			; Yes, give simple error msg, etc
+	ldb	4, [point 9, (3), 8]
+	cain	4, .cmcfm		; Done with list
+	 jrst	typbak			; Yes, go type them out then
+	movni	4, -1(2)
+	movsi	3, 400000
+	lsh	3, (4)
+	tdne	3, bakbts		; Really a background one?
+	 iorm	3, bkbts2		; Say print this one out
+	movei	2, [flddb. .cmcfm,,,,,<[
+		    flddb. .cmcma]>]
+	comnd
+	tlne	1, (cm%nop)		; Badness?
+	 jrst	bakerr			; Yes, give simple error msg, etc
+	ldb	4, [point 9, (3), 8]
+	caie	4, .cmcfm		; Done with list?
+	 jrst	backlp			; No, keep looking for more
+
+; Now really type the background plans requested
+typbak:	skipn	n, bkbts2
+	 jrst	didpln			; All done with all this stuff
+	call	numpln
+	andcam	1, bkbts2		; Dont try this again
+	call	typlan			; Type it out
+	jrst	typbak			; And keep going
+
+numpln:	jffo	n, .+1
+	movms	n, l
+	imuli	l, 3			; Offset right to data on this one
+	hlrz	1, nplans
+	addi	l, (1)			; Offset into plan data
+	movsi	1, 400000
+	movni	2, (n)
+	lsh	1, (2)			; Return bit to clear too
+	ret
+
+bakerr:	push	p, 1
+	call	crif
+	movei	1, "?"
+	pbout
+	movei	1, .priou
+	hrloi	2, .fhslf
+	setz	3,
+	erstr
+	 trn
+	 trn
+	pop	p, 1
+	jrst	dobak1			; Try again i guess
+
+noplan:	hrroi	1, [asciz /
+[No plan]
+/]
+	call	$psout
+	jrst	user6
+
+typlan:	hrroi	1, [asciz /
+Plan #/]
+	call	$psout
+	movei	1, .priou
+	movei	2, 1(n)
+	movei	3, =10
+	nout
+	 trn
+	hrroi	1, [asciz / (/]
+	psout
+	hrroi	1, strbuf
+	hlrz	2, planad(l)
+	andi	2, 177777
+	adjbp	2, [point 7, planad]
+	hrrz	3, planad(l)
+	movei	4, 12			; Get the first line
+	sout
+	push	p, 2			; Save updated stuff
+	push	p, 3
+	seto	2,
+	adjbp	2, 1			; Back over the CR too
+	setz	4,
+	dpb	4, 2			; Replace CR with NUL
+	hrroi	1, strbuf
+	call	$psout
+	hrroi	1, [asciz /), Expire date: /]
+	psout
+	call	pexptm
+	move	1, crlfi
+	psout
+	pop	p, 3
+	pop	p, 2			; Get back updated stuff
+typln1:	sojle	3, typln2
+	ildb	1, 2
+	jumpe	1, typln2
+	call	$pbout
+	jrst	typln1
+typln2:	move	4, 1			; Get last char typed
+	move	1, crlfi
+	caie	4, 12
+	 psout				; Type crlf unless already one
+	ret				; And return
+
+pexptm:	move	2, planad+2(l)
+	movsi	3, 200000		; Special time flag
+	tdne	3, planad(l)		; Is it special?
+	 jrst	pexpts			; Yes
+	movei	1, .priou
+	movsi	3, (ot%day!ot%nsc)
+	odtim
+	ret
+pexpts:	hrroi	1, [asciz /Today at /]
+	psout
+	idivi	2, ^d<1000*60>		; Get minutes
+	idivi	2, =60			; Get hours
+	push	p, 3			; Save minutes
+	movei	1, .priou
+	movei	3, =10
+	nout
+	 trn
+	pop	p, 2
+	hrli	3, (no%lfl+no%zro+2b17)
+	nout
+	 trn
+	ret
+
+didpln:	seto	1,
+	move	2, [.fhslf,,planpg]
+	setz	3,
+	pmap
+	move	1, plnjfn
+	closf
+	 trn
+
+user6:	jrst	done
+
+	subttl	local finger subroutines
+
+filini:	movsi	1, (gj%old!gj%sht)
+	hrroi	2, filnam
+	gtjfn
+	 error	(Cant find data file)
+	movei	2, of%rd!of%thw
+	openf
+	 error	(Cant open data file)
+	hrlz	1, 1
+	move	2, [.fhslf,,filpag]
+	move	3, [pm%cnt!pm%rd+npages]
+	pmap				; Read in the file
+
+	gtad
+	movem	1, now			; Save now for later
+	sub	1, updatm		; See how long sine last update
+	cail	1, <5b17/^d<60*24>>	; Within 5 mins?
+	 error	(Daemon apparently not running)
+
+	hrroi	2,inqnam		; Get INQUIRE data file
+	movsi	1,(gj%sht!gj%old)
+	gtjfn
+	 jrst	noinq			; Not there, use CERBER pnames
+	hrrzm	1,inqjfn
+	move	2,[44b5!of%rd]
+	openf
+	 jrst	noinq			;;; Should be smarter 
+	tro	f,f%inq			; Mark using INQUIRE
+noinq:	ret				; Ok
+
+; Here when string is not a local or net address.  Look it up in
+; table of last names.
+
+lnmfng:	movei	b,fustr
+	call	lnmluk
+	 error	(No such user)		; Too bad...
+	hlrz	a, b			; More than one match?
+	caie	a, -1
+	 jrst 	lnmf1			; Yes
+	hlrz	u, (b)			; No, just the one
+	hll	u, jobuno		; Give it good LH
+	movem	u, lusr			; So let normal code do it
+	tro	f, f%lusr
+	jrst	user
+
+; Here when there are several folks with that last name.  Show them
+; all in alphabetical order.
+
+lnmf1:	push	p,b			; Save list
+	hlrz	u,(b)
+	hll	u,jobuno		; Give it good LH
+; Get a job
+	tlz	f, f%f1			; No jobs found yet
+	hllz	j, njobs		; Get a pointer to jobs
+lnmf2:	skipl	jobrt(j)		; Job exists?
+	 came	u, jobuno(j)		; Same user?
+	 jrst	lnmf25			; Nope, try next then
+	tlo	f, f%f1			; Say we have printed one for him
+	call	prtjob			; Print this job out
+lnmf25:	aobjn	j, lnmf2		; For all jobs
+	tlne	f, f%f1			; Find any?
+	 jrst	lnmf3			; Yes
+	call	prtjb0			; Nope, print last login
+	call	prtjbe
+lnmf3:	pop	p,b
+	aobjn	b,lnmf1			; Loop for next user
+	jrst	done
+
+prtjob:	call	prtjb0			; Set things up first
+	movei	2, (j)			; Job number
+	move	3, [no%lfl+3b17+=10]
+	nout
+	 trn
+	movei	2, " "
+	idpb	2, 1
+	move	3, jobpnm(j)		; Program name
+	call	movsix			; Insert as SIXBIT
+	movei	2, " "
+	idpb	2, 1
+	jrst	@idchnd			; Now, dispatch to proper idle/%/conn col
+
+;;; Here to print job's idle time
+prtjbi:	hrrz	t, jobtno(j)		; Get user's terminal
+	skipn	2, ttidle(t)		; Get terminal idle time
+	 move	2, jobidl(j)		; Idle time otherwise
+	call	movms			; Insert as millisecs
+
+	hlre	2, jobtno(j)		; Get tty wait state
+	jumpl	2, .+2			; Not in tty wait
+	skipa	2, ["."]
+	 movei	2, " "
+	idpb	2, 1
+	jrst	prtjb2
+
+;;; Here to print job's connect time
+prtcon:	move	2, todclk		; Get difference between
+	sub	2, jobltd(j)		;  now and job's login time
+	skipge	2			; Reasonable?
+	 setz	2,			; Nope, set to lower bound
+	call	movms			; Print as minutes
+	jrst	prtpsp			; Give a space as separator and go on
+
+;;; Here to print job's percentage of machine
+prtpct:	xct	percnt			; Wants percentage, get it
+	call	movpct			; And insert as percentage
+prtpsp:	movei	2, " "
+	idpb	2, 1			;  and fall through...
+
+prtjb2:	trne	f, f%lspm		; No console for this
+	 jrst	[movei	2, [asciz /    /]
+		 call	movstr
+		 hrroi	2, lmdata+lmtloc(j)
+		 jrst	prtjbl]
+	hrre	2, jobtno(j)		; Terminal
+	jumpl	2, prtdet		; Detached
+	move	3, [no%lfl+3b17+10]
+	nout
+	 trn
+	movei	3, " "
+	idpb	3, 1
+	imuli	2, ttylen
+	hrroi	2, ttylad(2)
+prtjbl:	movei	3, ttylen*5+1
+	setz	4,
+	sout
+	movei	2, " "
+	dpb	2, 1			; Replace null with space
+	jrst	prtjbf
+prtdet:	movei	2, [asciz /Det/]
+	call	movstr
+
+prtjbf:	setz	2,
+	idpb	2, 1
+	hrroi	1, strbuf
+	psout				; Now type it
+	move	1, crlfi
+	psout				; And then crlf
+	skipn	whois			; If doing whois
+	 ret
+	call	pwhois			; Print verbosity
+	call	crlf0
+	ret				; And finally return
+
+prtjb0:	camn	u, lastus		; Same as last user?
+	 skipe	whois			; And not a whois?
+	 caia
+	 jrst	prtjbs			; Yes, print spaces then
+	movem	u, lastus		; Update last user typed
+	trne	f, f%lspm
+	 jrst	[dmove 3,lmdata+lmunam(j)	; If from a lisp machine, get that
+		 dmovem 3, strbuf
+		 jrst prjb01]
+	skipn	2, u
+	 jrst	[dmove	3, [asciz /LOGIN/]
+		 dmovem	3, strbuf
+		 jrst	prtjb1]
+	trne	f, f%alps		; Are we sorting by username?
+	 jrst	[dmove	3, 1(s)		; Yes, can just get it from there
+		 dmovem	3, strbuf
+		 jrst	prjb01]
+	hrroi	1, strbuf
+	dirst
+	 trn
+prjb01:					; (This code from Stanford)
+	dmove	3, [point 7, strbuf	; Flush top-level directory if any
+		    point 7, strbuf]
+prj69a:	ildb	1, 3
+	jumpe	1,prj69b
+	caie	1,"."			; Scan for subdirectory
+	 jrst	prj69a
+	ildb	1, 3
+	jumpe	1, prj69b		; Just in case <FOO.> ever happens
+	caia
+prj69c:	 ildb	1, 3
+	idpb	1, 4
+	jumpn	1, prj69c
+	jrst	prjb01			; What a kludge - repeat for next level
+prj69b:	
+	movei	3, <byte (7) 0, 0, 0, 177, 177>
+	andcam	3, strbuf+1
+prtjb1:	move	1, [point 7, strbuf]
+	ildb	3, 1
+	jumpn	3, .-1
+	add	1, [7b5]
+	movei	3, " "
+	camn	1, [point 7, strbuf+1, 27]
+	 jrst	.+3
+	idpb	3, 1
+	jrst	.-3
+	call	pernam
+	movei	2, " "
+	dpb	2, 1			; Replace null
+	jumpe	3, .+3
+	idpb	2, 1
+	sojg	3, .-1
+	ret
+prtjbs:	move	1, [byte (7) 40, 40, 40, 40, 40]
+	movem	1, strbuf
+	move	1, [strbuf,,strbuf+1]
+	blt	1, strbuf+5
+	move	1, [point 7, strbuf+5, 27]
+	ret
+
+;;; Personal name for user in u, output to a
+pernam:	trne	f, f%lspm
+	 jrst [	hrroi	2, lmdata+lmupnm(j)
+		jrst	pernm1]
+	trne	f, f%inq		; Using INQUIRE?
+	 jrst [	setzm	hname		; In case there isn't an entry
+		jumpe 	u,.+1		; Not logged in, so print blanks
+		push	p, 1
+		skipn	whois
+		call	inqrd1
+		 call	inqrd
+	         jfcl
+		move	1, [point 7,abuf]
+		call	swpnam
+		pop	p, 1
+		hrroi	2, abuf
+		jrst	pernm1 ]
+	move	2, u
+	imuli	2, persln
+	hrroi	2, usrper(2)		; Personal name
+pernm1:	movei	3, persln*5
+	setz	4,
+	sout
+	ret
+
+prtjbe:	movei	2, [asciz / Last logout /]
+	call	movstr
+	skipn	2, usrlgo(u)		; User's logout time
+	 jrst	[movei	2, [asciz /never/]
+		 call	movstr
+		 jrst	prjbe3]
+	movsi	3, (ot%day!ot%nsc!ot%scl)
+	odtim
+	ldb	t, [point 9, usrtts(u), 17]	; Logout TTY
+	cain	t, 777
+	 call	[movei	2, [asciz / after detaching/]
+		 call	movstr
+		 ldb	t, [point 9, usrtts(u), 26]
+		 ret]
+	jumpe	t, prjbe3
+	movei	2, [asciz / from /]
+	call	movstr
+	trze	t, 400			; Real tty?
+	 jrst	prjbe4			; No, host name
+	movei	2, [asciz /TTY/]
+	call	movstr
+	movei	2, (t)
+	movei	3, 10
+	nout
+	 trn
+	jrst	prjbe3
+
+prjbe4:	movei	2, [asciz /host /]
+	call	movstr
+	movei	2, (t)
+	movei	3, 10
+	cvhst
+	 erjmp [nout  jfcl  jrst prjbe3]	; If fails, use NOut instead
+	 trn
+prjbe3:	call	prtjbf			; Print end of the buffer
+	ret
+
+
+; Put HNAME in human order (first name first).
+; Takes: dest ptr in 1, expects HNAME to be set up
+
+swpnam:	move	2,ibufp+$hname
+swpnm1:	ildb	3,2
+	cain	3,","
+	 jrst	swpnm2
+	jumpn	3,swpnm1
+; No comma found, output string straight
+	ildb	3,2
+	move	4,2
+	jrst	swpnm6
+
+swpnm2:	move	4,2			; Save ptr
+swpn25:	ildb	3,2
+	cain	3," "			; Discard spaces
+	 jrst	swpn25
+swpnm3:	jumpe	3,swpnm4		; Jump if end
+	idpb	3,1
+	ildb	3,2
+	jrst	swpnm3
+
+; Here when end detected, output space and first part of string
+swpnm4:	movei	3," "
+	idpb	3,1
+swpnm6:	move	2,ibufp+$hname
+swpnm5:	ildb	3,2
+	camn	2,4			; This where we left off?
+	 jrst	swpnm7			; Yes, that's all
+	idpb	3,1
+	jrst	swpnm5
+	
+swpnm7:	setz	3,
+	idpb	3,1			; terminate with a 0
+	ret
+
+; Routine for printing INQUIR info
+
+pwhois:	skipn	u			; Make sure user is real
+	 jrst	crlf0
+	skipn	blkadr			; Do we have some data?
+	 jrst	crlf0			; No data
+	type	<   >			; Indent
+	movei	x, $nname		; Nickname
+	call	stest
+	 etype	<(%2s)  >
+	movei	x, $naddr		; Net address
+	call	stest			
+	 etype	<[%2s]  >
+	movei	x, $projn		; Project and Supervisor
+	call	stest
+	 jfcl
+	move	3,2
+	movei	x, $super
+	call	stest
+	 skipa
+	jumpe	3,whois3
+	etype	<Hacking %3s>
+	skipe	2
+	 etype	< for %2s>
+whois3:	movei	x, $accnt		; Account
+	call	stest
+	 etype	< (%2s)>
+	movei	x,$wphon		; Work address & Phone
+	call	stest
+	 jfcl
+	move	3,2
+	movei	x,$waddr
+	call	stest
+	 skipa
+	jumpe	3,whois4
+	cetype	<   Work: %2s   >
+	skipe	3
+	etype	<%3s>
+whois4:	movei	x,$hphon		; Home address & Phone
+	call	stest
+	 jfcl
+	move	3,2
+	movei	x,$haddr
+	call	stest
+	 skipa
+	jumpe	3,whois5
+	cetype	<   Home: %2s   >
+	skipe	3
+	etype	<%3s>
+whois5:	movei	x, $remrk		; Remark
+	call	stest
+	 caia
+	 ret
+	call	crlf0
+	movei	a, remrk
+	movei	b, 4
+	call	shoind			; Print indentedly
+	call	crlf0
+	ret
+
+; Output some text, indented (is smart about strings containing CRLFs)
+; Expects:	a/ address of buffer
+;		b/ # columns to indent
+shoind:	movei	c, (a)			; Stash stuff
+	movei	d, -1(b)
+	movei	a, .priou
+	rfpos
+	tlz	b, -1
+	subi	b, (d)
+	jumpge	b, shoin1		; There or past
+	movei	a, " "
+	pbout
+	aojl	b, .-1
+
+shoin1:	hrli	c, 440700		; Make string pointer
+shoin2:	ildb	a, c			; Char loop
+	jumpe	a, [ret]		; Zero terminates
+	cain	a, 12			; LF?
+	 jrst	shoin3			; No, loop
+	pbout
+	jrst	shoin2
+shoin3:	ildb	b, c			; Yes, is the LF the last char?
+	jumpe	b, [ret]		; Yes, that's all
+	pbout				; No...output LF
+	push	p, b			; and save next char
+	movei	b, (d)			; Count
+	movei	a, " "
+	pbout
+	sojg	b, .-1			; Write spaces out
+	pop	p, a			; Output snarfed char
+	pbout
+	jrst	shoin2			; And loop for more
+
+	subttl	Idle/percentage/connect-time column setup routines
+
+concol:	hrroi	1, [asciz/Conn/]	; This is the right column header
+	movem	1, idchdr
+	movei	1, prtcon		; This is right handler for this column
+	movem	1, idchnd
+	ret
+
+percol:	hrroi	1, [asciz/ %  /]	; This is the right % column header
+	movem	1, idchdr
+	movei	1, prtpct		; This is right handler for this column
+	movem	1, idchnd
+	ret
+
+idlcol:	hrroi	1, [asciz/Idle/]	; Default idle column header
+	movem	1, idchdr
+	movei	1, prtjbi		; Default handler for idle column is idle
+	movem	1, idchnd
+	ret
+
+	subttl	INQUIRE interface
+
+; Expects:	u/ the directory number of the user to read in
+; Returns:	+1 Nothing defined yet for this luser
+;		+2 Sucess, individual buffers all filled up
+
+inqrd1:	troa	f, f%f1			; Only read up to human name
+inqrd:	 trz	f, f%f1
+	trnn	f, f%inq		; File there?
+	 ret				; Nope
+	movem	u, blkdir		; Save it
+	movei	c, (u)			; Get directory number
+	move	a, inqjfn		; Read in directory entry
+	rin
+	movem	b, blkadr		; Save pointer for block
+	jumpe	b, [ret]		; Nothing defined yet
+	hlrz	t, b			; Save length of user block
+	tlz	b, -1
+	sfptr				; Set file pos to start of user block
+	 error	()
+	move	b, [point 36,buf]	; Read in data
+	movni	c, (t)			; Get negative length of block
+	sin
+	movsi	a, -numfld		; Make an aobjn pointer for fields
+	trne	f, f%f1			; Only want name?
+	 movsi	a, -<$hname+1>		; Yes
+	push	p, u
+	move	u, [point 7,var]	; Start at the beg of the var area
+read1:	ldb	t, pntrs(a)		; Get the size of the field
+	movei	w, strsiz		; Setup the destination string size
+	camn	a, [$remrk-numfld,,$remrk]
+	 movei	w, remsiz
+	move	x, ibufp(a)		; Get a pointer to the destination buf
+	call	movstl
+	setz	b,			; Tack a null onto the end
+	idpb	b, x
+	aobjn	a, read1		; Get the next entry
+	pop	p, u
+	aos	(p)			; All done, return sucessfully
+	ret
+
+; Given item index in x, return pointer in 2.  Preserves all ACs but 2
+; Skips if item is empty, with 2 containing 0.
+
+stest:	push	p,a
+	move	b,ibufp(x)
+	movsi	a,(<byte (7) 177>)
+	tdne	a, (b)
+	 jrst	stest1
+	setz	b,
+	aos	-1(p)
+stest1:	pop	p,a
+	ret
+	
+	subttl	Last name lookup routine
+
+; Note - this code was adapted from the ITS LSRTNS package.
+
+; Look up a last name.  
+; Takes:   2/ Address of name (ASCIZ)
+; Returns: +1 Not found
+;	   +2 Got some,
+;	      2/ AOBJN ptr to list of matching entries of the form
+;	         <user number>,,<address of string>
+	
+lnmluk:	hrli	b, 440700		; Make pointer to name
+	move	w, b
+	call	lnmmap			; Make sure file is mapped in
+	 ret				; Not there
+	move	b, w
+
+; Make argument uppercase and pad out with zeros
+lnluk1:	ildb	c, b
+	cail	c, "a"
+	 trz	c, 40			; Uppercase
+	dpb	c, b
+	jumpn	c, lnluk1
+	tdza	c, c
+lnluk2:	 idpb	c, b
+	hlrz	a, b
+	caie	a, 10700		; Filled word with 0s?
+	 jrst	lnluk2
+	move	d, l$sptr+lnmadr 	; ptr to first entry
+	addi	d, lnmadr+1
+	move	t, d
+	add	t, -1(d)		; ptr after last entry
+
+;Binary Search.
+;W  byte ptr to name being searched for
+;A  points to current entry in Lastname table
+;B  byte pointer to argument name
+;C  byte pointer to name in table
+;D  points to first possible entry in Lastname table
+;T  points after last possible entry in Lastname table
+
+lnluk3:	camg	t,d			; Skip if any possibilities left
+	 jrst 	[ret]			; no match, lose
+	move 	a,t			; Generate probe point in center
+	sub 	a,d
+	lsh 	a,-1
+	add 	a,d
+	hrrz 	c,(a)			; Get address in file of that lastname
+	addi 	c,lnmadr		; Relocate to core address
+	move 	b,w			; Get address of name being searched for
+	call 	strcmp			; Compare the strings
+	 jrst [ movei	d,1(a)		; B>C, move up
+		jrst 	lnluk3 ]
+	 jrst [ move t,a		; B<C, move down
+		jrst lnluk3 ]
+
+; Equal.  Now narrow [D,T) to range of equality (may be more than one.)
+					; First back up to first
+lnluk4:	camg 	a,d
+	 jrst 	lnluk5			; Don't back up past D
+	hrrz 	c,-1(a)			; Get address in file of previous lastname
+	addi 	c,lnmadr			; Relocate to core address
+	move 	b,w			; Get address of name being searched for
+	call	strcmp
+	 jrst 	lnluk5			; B>C
+	 jrst 	lnluk5			; B<C (shouldn't happen)
+	soja 	a,lnluk4		; B=C, back up more
+
+; Now run forward to last
+lnluk5:	movni 	d,1			; Keep negative count of entries in RH
+	hrl 	d,a			; Keep address of first entry in LH
+lnluk6:	cail 	a,-1(t)
+	 jrst 	lnluk7			; Don't run forward past E
+	hrrz 	c,1(a)			; Get address in file of next lastname
+	addi 	c,lnmadr		; Relocate to core address
+	move 	b,w			; Get address of name being searched for
+	call 	strcmp
+	 jrst 	lnluk7			; B>C (shouldn't happen)
+	 jrst 	lnluk7			; B<C 
+	subi 	d,1			; B=C, forward more
+	aoja 	a,lnluk6
+
+lnluk7:	movs	b,d
+	aos	(p)			; Skip retrun
+	ret
+
+;Asciz string compare.  B and C are byte pointers to the two upper-case strings.
+;Clobbers only B and C
+;Skip twice if equal, once if B<C, no skip if B>C
+;Does assume that both strings are nulled out to word boundaries.
+
+STRCMP:	PUSH P,D
+	PUSH P,T
+STRCM1:	MOVE D,(B)
+	LSH D,-1
+	MOVE T,(C)
+	LSH T,-1
+	CAMLE D,T
+	 JRST STRCM3		;B>C
+	CAME D,T
+	 JRST STRCM2		;B<C
+	TRNN T,177
+	 JRST STRCM4		;Compared all, they are equal
+	ADDI B,1
+	AOJA C,STRCM1		;Equal so far, compare more
+
+STRCM4:	AOS -2(P)		;Reached end, B=C
+STRCM2: AOS -2(P)
+STRCM3:	POP P,T
+	POP P,D
+	POPJ P,
+
+; Map in file, if hasn't been yet.  Skip returns if good
+
+lnmmap:	trne	f,f%lnm			; File already mapped?
+	 jrst	lnmap9		; Yes
+	movsi	1,(gj%sht!gj%old)
+	hrroi	2,[inqfil(LASTNAME.DATA)]
+	gtjfn
+	 ret
+	movei	2,of%rd
+	openf
+	 error	(Can't open lastname file)
+	hrlzs	1
+	move	2,[.fhslf,,lnmpag]
+	movsi	3,(pm%rd)		; Map first page
+	pmap				
+	move 	3,lnmadr+l$ladr		; highest used address
+	lsh	3,-11			; Convert to pages
+	hrli	3,(pm%rd!pm%cnt)
+	aoj	1,
+	aoj	2,
+	pmap				; The rest of it
+lnmap9:	tro	f,f%lnm			; Mark file mapped
+	aos	(p)
+	ret
+
+	subttl	sorting routines
+
+srtalp:	tro	f, f%alps!f%cmpm	; Say we are sorting alphabetically
+	skipa	t, [call getalp]	; Need routine to get user name
+srttty:	 move	t, [hrre 2, jobtno(j)]
+	jrst	sortem
+
+getalp:	dmovem	2, atmbuf		; Clear area first
+	hrroi	1, atmbuf		; Some string space
+	skipn	2, jobuno(j)		; User number
+	 jrst	[getlgi: dmove 2, [asciz /LOGIN/]
+		 ret]
+	dirst
+	 jrst	getlgi
+					; (This code from Stanford again)
+gtalp0:	dmove	3, [point 7, atmbuf	; Flush top-level directory if any
+		    point 7, atmbuf]
+gtalpa:	ildb	1, 3
+	jumpe	1, gtalpb
+	caie	1,"."			; Scan for subdirectory
+	 jrst	gtalpa
+	ildb	1, 3
+	jumpe	1, gtalpb		; Just in case <FOO.> ever happens
+	caia
+gtalpc:	 ildb	1, 3
+	idpb	1, 4
+	jumpn	1, gtalpc
+	jrst	gtalp0
+gtalpb:
+	dmove	2, atmbuf		; Get values
+	trz	3, <byte (7) 0, 0, 0, 177, 177>
+	ret
+
+srtsub:	tro	f, f%cmpm
+	move	t, [move 2, jobpnm(j)]
+	jrst	sortem
+
+srtcon:	move	t, [			; need to do a little special
+		  call [move 2, todclk	; Get difference between job
+			sub 2, jobltd(j) ;  startup and now
+			ret]  ]
+	jrst	sortem
+
+srtidl:	skipa	t, [
+		  call [hrrz 2, jobtno(j)	; Get user's terminal
+			skipn 2, ttidle(2)	; Get terminal idle time
+	 		 move 2, jobidl(j)	; Idle time otherwise
+			ret] ]
+srtrt:	 move	t, [move 2, jobrt(j)]
+	jrst	sortem
+
+srtpct:	skipn	t, percnt		; Have a percent function?
+	 move	t, [hrrz 2, jobpct(j)]	; No, use default
+sortem:	hllz	j, njobs		; Get pointer to jobs
+	setz	n,			; Init count of jobs to be sorted
+	movei	s, sortad		; Where to start doing it
+setsrt:	skipge	jobrt(j)		; Job exists?
+	 jrst	setsrn			; No, try next then
+	aoj	n,			; One more job
+	setzb	2, 3			; Init guys
+	xct	t			; Get the value for this one
+	iori	3, (j)			; Stick in job number
+	dmovem	2, 1(s)			; Save them away
+	addi	s, 3			; Increment pointer
+	hrrzm	s, -3(s)		; Initialise link
+setsrn:	aobjn	j, setsrt		; For all jobs
+	setom	(s)			; Final link
+
+; Now resort the links right
+; NOTE: we sort backwards, ie the 1st one in the finished list is the biggest
+; Unless f%cmpm is set, then we assume it is alphabetically sorted normally
+	movei	l, sortad		; Init list
+nsort:	cain	n, 1			; Done this pass?
+	 jrst	nsort1			; Yes, return it
+	push	p, n			; Save count
+	lsh	n, -1
+	call	nsort			; Recurse
+	pop	p, n
+	push	p, a			; Save value
+	addi	n, 1
+	lsh	n, -1
+	call	nsort
+	pop	p, b			; Get first value
+	movei	c, d			; Where to accumulate list
+
+nmerge:	jumpl	b, nsrtn1		; No first arg, maybe use second
+	jumpl	a, nsrtrb		; No second, use first
+	move	t, 1(a)			; Get second value
+	move	u, 1(b)			; Get first value
+	trne	f, f%cmpm		; Need magnitude compare?
+	 jrst	ncompm			; Yes, have to do that then
+nmergc:	caml	t, u
+	 jrst	nsrtra			; 1st greater => take it
+	jrst	nsrtrb
+
+ncompm:	camn	t, u			; The same?
+	 jrst	[move t, 2(a)  move u, 2(b)  jrst .+1]
+	jumpl	t, ncmpm2		; t neg?
+	jumpl	u, nsrtra		; No, and u neg => u greater
+	jrst	nmergc			; Both pos, just compare
+ncmpm2:	jumpge	u, nsrtrb		; t neg and u pos => t greater
+	exch	t, u
+	jrst	nmergc			; Else compare backwards
+
+nsrtra:	movem	a, (c)			; Enter 1st at head
+	movei	c, (a)			; Transfer it to tail
+	move	a, (c)			; Get next one
+	jrst	nmerge			; And continue
+nsrtrb:	movem	b, (c)
+	movei	c, (b)
+	move	b, (c)
+	jrst	nmerge
+
+nsrtn1:	jumpge	a, nsrtra		; Use 2nd if any
+	setom	(c)
+	move	a, d
+	ret
+
+nsort1:	movei	a, (l)			; Return CAR of list
+	move	l, (l)			; List _ CDR
+	setom	(a)			; Make CDR of value NIL
+	ret
+
+	subttl	network finger
+
+netfng:	skipl	t, host			; Get host number
+	 jrst	netfn1			; Really a number, not a list
+	move	t, (t)			; Get top of the list
+netfn0:	call	crif
+	movei	1, "["
+	pbout
+	hrroi	1, (t)			; Host name
+	psout
+	hrroi	1, [asciz /]
+/]
+	psout
+	hrroi	2,(t)			
+	move	1,namtab
+	tbluk
+	tlne	2,(tl%nom!tl%amb)
+	 error	(Unknown host in internal list)
+	hrrz	t,(1)			; Get site entry
+netfn1:	setzm	chahos			; No hosts yet
+	setzm	arphos
+	move	a,t			; Points to SITE entry
+	addi	a,hstadr
+	move	b,stradr(a)		; Get ptr to address entry
+netfn2:	move	c,hstadr+addadr(b)	; Get actual address
+	ldb	d,[point 9,c,8]		; Extract net number
+	cain	d,arpan			; Arpanet?
+	 movem	c,arphos
+	cain	d,chaosn		; Or chaos?
+	 movem	c,chahos
+	hrrz	b,hstadr+adrcdr(b)	; Get ptr to next address
+	jumpn	b,netfn2
+	skipe	chahos			; See if we got one we can talk to
+	 jrst	chausr
+	skipe	arphos
+	 jrst	arpusr
+	jrst	netnxx
+
+ienptr:	point	8,t,11
+	point	8,t,27
+	point	8,t,35
+	point	8,t,19
+
+arpusr:	move	a,[point 9,arphos]	; Cretin HOSTS2 has 9-bit bytes
+	move	d,[-4,,ienptr]
+	setz	t,
+	ildb	c,a
+	dpb	c,(d)
+	aobjn	d,.-2
+	call	doicp			; Do the icp
+	 jrst	netnxt			; Failed, move onto the next one
+	move	1, netout		; Network output jfn
+	hrroi	2, fustr		; Foreign user
+	setz	3,
+	trne	f, f%fusr		; Wants foreign user?
+	 sout
+	hrroi	2, [asciz \/W\]
+	skipe	whois			; Wants whois info
+	 sout
+	hrroi	2, crlf
+	sout
+	movei	2, .mosnd		; Send off the buffer
+	mtopr
+
+netlup:	move	1, netin		; Network input
+	bin
+	 erjmp	netfin			; Done when connection closed
+	movei	1, .priou
+	bout
+	skipn	ctgcnt
+	 jrst	netlup
+
+netfin:	move	1, netin
+	closf
+	 tdn
+	move	1, netout
+	closf
+	 tdn
+	skipn	ctgcnt
+	 jrst	netnxt
+netnxx:	skipe	ctgcnt
+	 jrst [	warn	<Quit>
+		jrst	netnxt ]
+	warn	<Unable to talk to host>
+netnxt:	move	1, crlfi
+	psout
+	aosge	t, host			; Get next in the list
+	 skipn	t, (t)
+	 jrst	done
+	jrst	netfn0
+
+	subttl	lower level network routines
+
+doicp:	setzm	ctgcnt
+	move	1, [point 7, strbuf]
+	movei	2, [asciz /NET:0./]
+	call	movstr
+	move	2, t			; Host number
+	movei	3, 10
+	nout
+	 tdn
+	movn	2, icpskt
+	nout
+	 tdn
+	movei	2, [asciz /.;T/]
+	call	movst0
+	movsi	1, (gj%old!gj%sht)
+	hrroi	2, strbuf
+	gtjfn
+	 jrst 	noicpx
+	move	2, [40b5+6b9+of%rd]
+	openf
+	 jrst	noicp
+	call	arpwat
+	 jrst	noicpw
+	bin
+	closf
+	 tdn
+	push	p, 2			; Save foreign socket
+	move	1, [point 7, strbuf]
+	movei	2, [asciz /NET:2./]
+	call	movstr
+	move	2, t
+	movei	3, 10
+	nout
+	 tdn
+	movei	2, "-"
+	idpb	2, 1
+	pop	p, 2
+	nout
+	 tdn
+	movei	2, [asciz /.;T/]
+	call	movst0
+	movsi	1, (gj%old!gj%sht)
+	hrroi	2, strbuf
+	gtjfn
+	 jrst	noicp
+	movem	1, netout
+	movsi	1, (gj%old!gj%sht)
+	hrroi	2, strbuf
+	gtjfn
+	 jrst	noicp
+	move	2, [10b5+6b9+of%rd]
+	openf
+	 jrst	noicp
+	movem	1, netin
+	move	1, netout
+	move	2, [10b5+7b9+of%wr]
+	openf
+	 jrst	noicp
+	call	arpwat
+	 jrst	noicpw
+	move	1,netin
+	call	arpwat
+	 jrst	noicpw
+	aos	(p)			; Skip return for success
+	ret
+
+arpwat:	push	p, 1			; Save jfn
+	push	p, [arptim]		; Set start time
+arpwlp:	move	1, -1(p)
+	gdsts
+	 erjmp	arpwn1
+	rot	2, 4		; get status code in position
+	andi	2, 17		; get rid of other bits
+	cain	2, 7		; open ?
+	 jrst [	adjsp	p, -2	; yes -- skip return
+		aos	(p)
+		ret ]
+	cain	2, 6		; RFC sent
+	 skipe	ctgcnt
+	  jrst	arpwno
+	movei	1, =100
+	caml	1, (p)		; time to quit ?
+	 jrst	arpwno
+	movni	2, (1)		; Decrement time remaining
+	addm	2, (p)
+	disms			; Wait a little
+	jrst	arpwlp
+arpwno:	movni	a, 1
+arpwn1:	adjsp	p, -2		; No skip return
+	ret
+
+analyz:	move	1, [sixbit /HSTSTS/]
+	sysgt
+	setz	1,
+	ldb	u, [point 5,t,34]	; IMP / 2 (low 6 bits anyway)
+	dpb	u, [point 5,1,17]
+	ldb	u, [point 2,t,19]	; HOST (low 2 bits)
+	dpb	u, [point 2,1,12]
+	hrri	1, (2)			; Table index
+	getab
+	 jrst	noicp0			; Report error in simple way
+	trnn	t, 1
+	 skipa	u, 1
+	 movs	u, 1			; Save bits for this host
+	tlne	u, (1b0)
+	 tlnn	u, (1b1)		; Check that isnt up
+	 jrst	noicp0			; It is, report old error then
+	call	crif
+	setz	2,
+	ldb	1, [point 6,t,35]	; IMP (low 6 bits anyway)
+	dpb	1, [point 6,2,35]
+	ldb	1, [point 2,t,19]	; HOST (low 2 bits)
+	dpb	1, [point 2,2,29]
+	movei	1, .priou
+	movei	3, 10
+	cvhst
+	 nout
+	 tdn
+	hrroi	1, [asciz / is /]
+	psout
+	ldb	2, [point 4, u, 17]	; Reason code
+	caig	2, 3
+	 jrst	analy3
+	ldb	2, [point 12, u, 13]	; Time back up field
+	cain	2, 7777			; -1 => > 1 week
+	 jrst	[hrroi	1, [asciz /down for >7 days: /]
+		 jrst	analy2]
+analy1:	jumpe	2, [hrroi 1, [asciz /down for an unknown period: /]
+		 jrst	analy2]		; 0 => unknown
+	ldb	2, [point 5, u, 9]
+	ldb	3, [point 4, u, 13]
+	caig	2, =23
+	 caile	3, =11
+	 jrst	@analy1
+	gtad
+	imuli	2, =12			; Get number of 5 min intervals
+	add	2, 3
+	imuli	2, <5b17/^d<24*60>>	; Convert to parts of a day
+	hll	2, 1			; Get today gmt
+	push	p, 2			; Save it
+	setz	4,
+	odcnv
+	hrroi	1, [asciz /down until /]
+	psout
+	hrro	1, weekdy(3)		; Get day of the week
+	psout
+	hrroi	1, [asciz / at /]
+	psout
+	movei	1, .priou
+	pop	p, 2
+	movsi	3, (ot%nda!ot%nsc!ot%nco!ot%tmz!ot%scl)
+	odtim
+	hrroi	1, [asciz /: /]
+analy2:	psout
+	ldb	2, [point 4, u, 17]
+analy3:	hrro	1, reason(2)
+	psout
+	movei	1, "."
+	pbout
+	ret
+
+weekdy:	[asciz /Monday/]
+	[asciz /Tuesday/]
+	[asciz /Wednesday/]
+	[asciz /Thursday/]
+	[asciz /Friday/]
+	[asciz /Saturday/]
+	[asciz /Sunday/]
+	[asciz /Year day/]
+
+reason:	[asciz /down, reason unknown/]
+	[asciz /not ready/]
+	[asciz /tardy/]
+	[asciz /nonexistent/]
+	[asciz /Reason unknown/]
+	[asciz /Scheduled PM/]
+	[asciz /Scheduled hardware work/]
+	[asciz /Scheduled software work/]
+	[asciz /Emergency restart/]
+	[asciz /Power outage/]
+	[asciz /Software breakpoint/]
+	[asciz /Hardware failure/]
+	[asciz /Reason unknown/]
+	[asciz /Reason unknown/]
+	[asciz /Reason unknown/]
+	[asciz /Reason unknown/]
+
+noicpw:	jumpge	1, noicp		; -1 --> arpwat timed out
+	skipe	ctgcnt
+	 ret
+	hrroi	1,[asciz /Connection timed out/]
+	psout
+	ret
+
+noicpx:	cain	1, gjfx16		; Not arpanet system?
+	 jrst	arpgat			; Yes--try gateway
+
+noicp:	skipe	ctgcnt
+	 ret
+	cain	1, opnx20		; Host not up?
+	 jrst	analyz			; Yes, go figure out why not
+noicp0:	call	crif
+	movei	1, .priou
+	hrloi	2, .fhslf
+	setz	3,
+	erstr				; Other error just print message
+	 caia
+	 tdn
+	ret
+
+	subttl	Chaos routines
+
+; Listen for a connection
+chalst:	movsi	a,(gj%old!gj%sht)
+	hrroi	b,[asciz /CHA:.NAME/]
+	gtjfn
+	 jerror	(Can't listen on Chaos)
+	move	b,[8b5+of%rd+of%wr]
+	openf
+	 jerror	(Chaos open failed)
+	movem	a,chajfn
+	movei	a,.fhslf
+	gpjfn
+	hrr	b,chajfn
+	spjfn
+	tro	f,f%npok		; Ok to use primary JFNs now
+	ret
+
+; Get RFC and extract user and command line
+chajcl:	move	a,chajfn		
+	movei	b,.mopkr		; Read a single packet (the rfc)
+	movei	c,chapkt
+	mtopr
+	move	a,[441000,,chapkt+4]	; Point to data portion
+	ldb	b,[point 12,chapkt,31]	; Get byte count
+chajc0:	ildb	d,a			; Read past contact name
+	caie	d," "
+	 sojg	b,chajc0
+	move	c,cmdblk+.cmptr		; Give it to COMND
+	caie	d," "
+	 jrst	chajc2			; Apparently no argument
+	soje	b,chajc2
+chajc1:	ildb	d,a
+	idpb	d,c
+	aos	cmdblk+.cminc		; Count it
+	sojg	b,chajc1
+chajc2:	movei	d,"M"-100		; Terminate with CRLF
+	idpb	d,c
+	movei	d,"J"-100
+	idpb	d,c
+	aos	cmdblk+.cminc
+	aos	cmdblk+.cminc
+	ret
+
+; Done
+chadon:	move	a,chajfn		; Send an EOF
+	movei	b,.moeof
+	mtopr
+	movei	b,.monop		; Wait for everything to ACK
+	mtopr
+	closf
+	 jfcl				; Oh well
+chaexi:	gjinf				; Are we job 0?
+	jumpe	a,[haltf]
+	seto	a,			; No, logout
+;	lgout
+	haltf
+
+; Chaos user finger, host is in CHAHOS
+chausr:	setzm	ctgcnt
+	move	a,[point 7,strbuf]	; BUILD net string
+	hrroi	b,[asciz /CHA:/]	
+	call	movstr
+	move	b,chahos
+	tlz	b,(377=27)		; Mask out net number
+	movei	c,10
+	nout
+	 error	()
+	hrroi	b,[asciz /.NAME_/]
+	call	movstr
+	hrroi	b,fustr
+	call	movqot
+	hrroi	b,[asciz |/W|]
+	skipe	whois
+	 call	movstr
+	setz	b,
+	idpb	b,a
+	hrroi	b,strbuf
+	movsi	a,(gj%old!gj%sht)
+	gtjfn
+	 jrst	chulos
+	move	b,[8b5+6b9+of%rd]
+	openf
+	 jrst	chulos
+	movem	a,chajfn
+	movei	t,chatim
+;	movei	b,.mosrt		; Set RFC timeout
+;	movei	c,chatim
+;	mtopr
+;	 erjmp	chulos
+chuwat:	gdsts
+	 erjmp	chulos
+	cain	b,4			; open ?
+	 jrst	chausl			; yes, success
+	cain	b,3			; RFC sent ?
+	 skipe	ctgcnt
+	  jrst	chulos
+	movei	a,=100
+;; here because .MOSRT is not accurate
+	subi	t,(a)
+	jumple	t,chulos
+;;
+	disms
+	move	a,chajfn
+	jrst	chuwat
+
+chausl:	move	a,chajfn
+	bin	
+	 erjmp	chudon			; Done on EOF
+	skipe	ctgcnt
+	 jrst	chulos
+	cain	b,215			; Special LISPM EOL?
+	 jrst	chaeol			; Yes
+	movei	a,(b)
+	pbout
+	jrst	chausl
+
+chaeol:	movei	a,15
+	pbout
+	movei	a,12
+	pbout
+	jrst	chausl
+
+chulos:	move	a,chajfn
+	closf
+	 jfcl
+	skipn	ctgcnt
+	 skipn	arphos			; Was there an Arpa address?
+	  jrst	netnxx
+	   jrst	arpusr			; Yes, try that
+
+chudon:	move	a,chajfn
+	closf
+	 jfcl
+	jrst	netnxt
+
+; Try using Chaos-ARPA gateway for Arpa hosts (JRST to from DOICP)
+arpgat:	move	a,[point 7,strbuf]
+	hrroi	b,[asciz /CHA:MC.ARPA_/]
+	call	movstr
+	move	b,arphos	
+	movei	c,10
+	nout
+	 jfcl
+	movei	b,"_"
+	bout
+	move	b,icpskt
+	movei	c,10
+	nout
+	 error	()
+	setz	b,
+	bout
+	movsi	a,(gj%sht!gj%old)
+	hrroi	b,strbuf
+	gtjfn
+	 jrst	[ret]
+	move	b,[8b5+6b9+of%rd+of%wr]
+	openf
+	 jrst	[ret]
+	movem	a,netin
+	movem	a,netout
+	movei	b,.mosrt
+	movei	c,chatim+arptim
+	mtopr
+	 erjmp	[ret]
+arpgwt:	gdsts
+	 erjmp	[ret]
+	cain	b,4			; open ?
+	 aos	(p)			; yes, success
+	cain	b,3			; RFC sent ?
+	 skipe	ctgcnt
+	  ret
+	movei	a,=100
+	disms
+	move	a,netin
+	jrst	arpgwt
+
+	subttl	HOSTS2 support
+
+;;; The format of the compiled HOSTS2 file is:
+
+hstsid==0	; wd 0	SIXBIT /HOSTS2/
+namptr==10	; wd 10 Address in file of NAME table.
+sitptr==11	; wd 11	Address in file of SITE table.
+netptr==12	; wd 12 Address in file of NETWORK table.
+
+;;NETWORK table
+;; wd 0	Number of entries in table.
+;; wd 1	Number of words per entry. (2)
+netnum==0	; wd 0	network number
+ntlnam==1	; wd 1 LH - address in file of name of network
+ntrtab==1	; wd 1 RH - address in file of network's address table
+
+;;ADDRESS table(s)
+;; wd 0	Number of entries in table.
+;; wd 1	Number of words per entry. (2)
+addadr==0	; wd 0	Network address of this entry including network number
+adlsit==1	; wd 1 LH - address in file of SITE table entry
+adrcdr==1	; wd 1 RH - address in file of next ADDRESS entry for this site
+		;	    0 = end of list
+
+;;SITE table
+;; wd 0	Number of entries in table.
+;; wd 1	Number of words per entry. (3)
+stlnam==0	; wd 0 LH - address in file of official host name
+stradr==0	; wd 0 RH - address in file of first ADDRESS table entry for
+		;	    this site.  Successive entries are threaded
+		;	    together through ADRCDR.
+stlsys==1	; wd 1 LH - address in file of system name (its, tip, tenex, etc.)
+		;			may be 0 => not known.
+strmch==1	; wd 1 RH - address in file of machine name (pdp10, etc.)
+		;			may be 0 => not known.
+stlflg==2	; wd 2 LH - flags:
+stfsrv==400000	;	4.9 1 => server site (according to nic)
+		; wd 2 RH - not used
+
+;;NAMES table:
+;; wd 0	Number of entries
+;; wd 1	Number of words per entry. (1)
+nmlsit==0	; lh	address in file of SITE table entry for this host.
+nmrnam==0	; rh	address in file of host name
+
+;;; All names are ASCIZ strings, all letters upper case.
+;;; The strings are stored before, after and between the tables.
+;;; All strings are word-aligned, and fully zero-filled in the last word.
+
+;;; Network addresses are defined as follows, for purposes of this table:
+;;;    4.9     0
+;;;    4.8-4.1 network number
+;;;    Chaos net (number 7):
+;;;	3.9-2.8	0
+;;;	2.7-1.1 address (2.7-1.9 subnet, 1.8-1.1 host)
+;;;    Arpanet (number 12):	(note, old-format Arpanet addresses
+;;;	3.9-3.8	0	 	never appear in the host table.)
+;;;	3.7-2.1	IMP
+;;;	1.9	0
+;;;	1.8-1.1	Host
+;;;    Dialnet (number 26):
+;;;	3.9-3.1	0
+;;;	2.9-1.1	address in file of ASCIZ string of phone number
+
+nw%chs==7	;Chaos net
+nw%arp==12	;Arpanet
+nw%dln==26	;Dialnet
+
+; Set up TBLUK table of host names
+hstini:	movsi	a,(gj%old!gj%sht)
+ife tnx,<
+	hrroi	b,[asciz /SYSTEM:HOSTS2.BIN/]
+>
+ifn tnx,<
+	hrroi	b,[asciz /<SYSTEM>HOSTS2.BIN/]
+>
+	gtjfn
+	 error	(No HOSTS2)
+	movei	b,of%rd
+	openf
+	 error	()
+	sizef
+	 error	()
+	hrlz	a,a			; Map file
+	move	b,[.fhslf,,hstadr/1000]
+	hrli	c,(pm%cnt!pm%rd!pm%cpy)
+	pmap
+	
+	move	t,hstadr+namptr		; Get address of name table
+	addi	t,hstadr
+	move	a,(t)			; Number of entries
+	hrli	a,(a)
+	movem	a,1(t)
+	movni	a,(a)
+	hrlzi	a,(a)
+	hrri	a,(t)
+	addi	a,2
+hstin1:	move	b,(a)
+	addi	b,hstadr
+	movsm	b,(a)
+	aobjn	a,hstin1
+	aoj	t,
+	movem	t,namtab		; Store address for TBLUK
+ife tnx,<
+	hrroi	a,lclnam
+	seto	b,
+	cvhst
+	 ercal	glclnm
+>
+ifn tnx,<
+	call	glclnm
+>
+	hrroi	2,lclnam
+	move	1,namtab
+	tbluk
+	tlne	2,(tl%nom!tl%amb)
+	 tdza	t,t
+	hrrz	t,(1)			; Get site entry
+	movem	t,lclsit		; Save it
+	ret
+
+;;; if cvhst to get local host name fails, try for it from system:hostname.txt.
+;;; if can't, warn and give up.
+glclnm:	movsi a,(gj%sht+gj%old)
+ifn tnx,<
+	hrroi b,[asciz /<SYSTEM>HOSTNAME.TXT/]
+>
+ife tnx,<
+	hrroi b,[asciz /SYSTEM:HOSTNAME.TXT/]
+>
+	gtjfn
+	 erjmp glclnf
+	hrrzs a			;clear out any returned flags
+	move b,[7b5+of%rd]
+	openf
+	 erjmp glclfl
+	move c,[point 7,lclnam]	;now, stuff lclnam
+glclp:	bin
+	 erjmp glcldn		;done on eof
+	jumpe b,glcldn		; or on nul
+	caie b,12		; or lf
+	 cain b,15		; or cr
+	  jrst glcldn
+	idpb b,c		;else, add it
+	jrst glclp
+
+glcldn:	setz b,			;tie off local name
+	idpb b,c
+	closf			;close down this file
+	 erjmp .+1		;ignore any errors
+	ret
+
+glclfl:	rljfn			;get rid of useless jfn
+	 erjmp .+1		;ignore error
+glclnf:	setzm lclnam
+	ret
+
+	subttl	string subroutines
+
+movstr:	hrli	2, (<point 7, 0>)
+movst1:	ildb	4, 2
+	jumpe	4, movst3
+	idpb	4, 1
+	jrst	movst1
+
+; Move string and terminating null
+movst0:	hrli	2, (<point 7, 0>)
+movst2:	ildb	4, 2
+	idpb	4, 1
+	jumpn	4, movst2
+movst3:	ret
+
+; Move string quoting non-filename chars with ^V
+movqot:	hrli	2, (<point 7, 0>)
+movqo1:	ildb	4, 2
+	jumpe	4, movst3
+	caie	4,"."			; This is only thing used, really
+	 jrst	movqo2
+	movei	3,"V"-100
+	idpb	3, 1
+movqo2:	idpb	4, 1
+	jrst	movqo1
+
+
+movsix:	movei	4, 6			; Max # chars to do
+movsx1:	setz	2,
+	lshc	2, 6
+	addi	2, " "
+	idpb	2, 1
+	sojg	4, movsx1		; For all chars
+
+crif:	push	p, 1
+	push	p, 2
+	movei	1, .priou
+	rfpos
+	move	1, crlfi
+	trne	2, -1
+	 psout
+	pop	p, 2
+	pop	p, 1
+	ret
+
+crlf0:	push	p,1
+	move	1,crlfi
+	psout
+cpop1j:	pop	p,1
+	ret
+
+$psout:	skipe	chafp
+	 jrst	chapso
+	psout
+	ret
+
+;; Typeout with character set translations.  For things like plan files
+;; which may have arbitrary characters in them.
+chapso:	tlc	1, -1
+	tlcn	1, -1
+	 hrli	1, (<point 7, 0>)
+	push	p, 1
+	movei	1, .priou
+chaps1:	ildb	1, (p)
+	jumpe	1, cpop1j
+	call	chapbo
+	jrst	chaps1
+
+$pbout:	skipe	chafp
+	 jrst	chapbo
+pbout1:	pbout
+	ret
+
+chapbo:	cain	1, 12
+	 ret
+	caie	1, 10
+	 cain	1, 11
+	 tro	1, 200
+	caie	1, 14
+	 cain	1, 15
+	 tro	1, 200
+	jrst	pbout1
+
+movms:	idivi	2, ^d<60*1000>		; Into minutes
+	caile	3, ^d<30*1000>
+	 aoj	2,			; Round up
+	jumpe	2, movmsn		; Not any at all, use spaces
+	idivi	2, =60			; Get hours
+	caile	2, 9			; Idle for more than 9 hrs
+	 jrst	movmss			; Yes, use stars then
+	push	p, 3			; Save minutes
+	jumpe	2, movms2		; Less than an hour, space over
+	movei	2, "0"(2)		; Dont need a nout here after all that
+	idpb	2, 1
+	movei	2, ":"
+	idpb	2, 1
+	skipa	3, [no%lfl+no%zro+2b17+=10]
+movms1:	 move	3, [no%lfl+2b17+=10]
+	pop	p, 2			; Get back minutes
+	nout
+	 trn
+	ret
+movmsn:	movei	2, [asciz /    /]
+	jrst	movstr
+movmss:	movei	2, [asciz /*:**/]
+	jrst	movstr
+movms2:	movei	2, " "
+	idpb	2, 1
+	idpb	2, 1
+	jrst	movms1
+
+movpct:	jumpe	2, movmsn		; Use spaces if none
+	idivi	2, =10			; Get percentage
+	push	p, 3
+	jumpe	2, movpc2
+	move	3, [no%lfl+2b17+=10]
+	nout
+	 trn
+movpc1:	movei	2, "."
+	idpb	2, 1
+	pop	p, 2
+	movei	2, "0"(2)
+	idpb	2, 1
+	ret
+movpc2:	movei	2, " "
+	idpb	2, 1
+	idpb	2, 1
+	jrst	movpc1
+
+ife tnx,<
+movstl:	extend	t, [ movslj		; Copy the string
+		     0 ]
+	 cerr	(String move failed)
+	ret
+>
+
+ifn tnx,<
+	subttl	Tenex support rotines
+
+; Simulate extend t,[movslj  0]
+movstl:	push	p, a
+movsl1:	sojl	t, cpop1j
+	sojl	w, movsle
+	ildb	a, u
+	idpb	a, x
+	jrst	movsl1
+
+movsle:	cerr	(String move failed)
+
+
+; TOPS-20 PMAP emulation.  Does the repeat count business
+.pmap:	dmovem	a, uuoacs+a		;save ac's
+	dmovem	c, uuoacs+c
+	movei	d, 1			;assume 1 page
+	tlne	c, (pm%cnt)		;count provided?
+	 hrrz	d, c			;yes, use it
+.pmap0:	$pmap				;map the first page
+	came	a, [-1]			;special ac 1?
+	 addi	a, 1			;no, bump it
+	addi	b, 1			;and the dest
+	sojg	d, .pmap0		;do them all
+	dmove	a, uuoacs+a		;recover acs
+	dmove	c, uuoacs+c
+	ret
+>;ifn tnx
+
+	subttl	UUO handler
+
+uuoh:	movem	16, uuoacs+16		; Save all AC's
+	movei	16, uuoacs
+	blt	16, uuoacs+15
+	skipe	chafp			; Chaos net we're dealing with?
+	 trne	f,f%npok		; Yes, ok to use the net connection?
+	 caia
+	 jrst	chaexi			; Nope, just get out
+	ldb	t, [point 9, 40, 8]	; Get opcode field
+	call	@uuos(t)		; Do the right routine
+	movsi	16, uuoacs		; Restore ac's
+	blt	16, 16
+	ret
+
+uuos:	0
+	%type
+	%etype
+	%error
+	0
+	%confm
+	%print
+
+	subttl	ETYPE UUO
+
+%etype:	call	tycrif			; Type a cr maybe
+%etye0:	hrrz	t, 40
+%etys0:	hrli	t, (<point 7, 0>)	; Get byte pointer to string
+%etyp1:	ildb	1, t			; Get char
+	jumpe	1, cpopj		; Done
+	caie	1, "%"			; Escape code?
+	 jrst	%etyp0			; No, just print it out
+	setz	u,			; Reset ac
+%etyp2:	ildb	1, t
+	cail	1, "0"			; Is it part of addr spec?
+	 caile	1, "7"
+	 jrst	%etyp3			; No
+	imuli	u, 10			; Yes, increment address
+	addi	u, -"0"(1)
+	jrst	%etyp2
+%etyp3:	trz	1, 40			; Uppercase it
+	caige	1, "A"
+	 jrst	%etyp0
+	call	@%etytb-"A"(1)		; Do dep't thing
+	jrst	%etyp1
+
+%etyp0:	pbout
+	jrst	%etyp1
+
+%etytb:	%etypa				; A - Print time
+	%etypb				; B - Print date
+	%etypc				; C - Go to column
+	%etypd				; D - print decimal
+	%etyp0				; E
+	%etypf				; F - floating
+	%etyp0				; G
+	%etyph				; H - rh as octal
+	%etyp0				; I
+	%etypj				; J - filename
+	repeat	2, <%etyp0>		; K, L
+	%etyp0				; M
+	%etypn				; N - host name
+	%etypo				; O - octal
+	repeat	3, <%etyp0>		; P, Q, R
+	%etyps				; S - string
+	%etypt				; T - date and time
+	%etypu				; U - directory name
+	repeat	5, <%etyp0>		; V, W, X, Y, Z
+
+%etypa:	movsi	3, (ot%nda)		; No day, just time
+	jrst	%etyb0
+
+%etypt:	tdza	3, 3			; Both date and time
+%etypb:	 movsi	3, (ot%ntm)		; No time, just day
+%etyb0:	jumpe	u, .+2			; If ac field spec'd
+	 skipa	2, uuoacs(u)		; Use it
+	 seto	2,			; Else use now
+	movei	1, .priou
+	odtim
+	ret
+
+%etypc:	movei	1, .priou		; Go to the right column
+	rfpos
+	subi	u, 1(2)			; Get relative position
+	movei	1, " "			; Always do at least one space
+	pbout
+	sojg	u, .-1
+	ret
+
+%etypd:	skipa	3, [=10]		; Decimal
+%etypo:	 movei	3, 10			; Octal
+	move	2, uuoacs(u)		; Get data
+%etyo0:	movei	1, .priou
+	nout
+	 jfcl
+	ret
+
+%etypf:	movei	1, .priou
+	move	2, uuoacs(u)
+	setz	3,
+	flout
+	 jfcl
+	ret
+
+%etyph:	movei	3, 10
+	hrrz	2, uuoacs(u)
+	jrst	%etyo0
+
+%etypj:	movei	1, .priou
+	move	2, uuoacs(u)
+	setz	3,
+	jfns
+	ret
+
+%etypn:	movei	1, .priou
+	move	2, uuoacs(u)
+	movei	3, 10			; Just in case
+	cvhst
+	 erjmp [nout  jfcl  jrst %etyn9]	; In case fails
+	 jfcl
+%etyn9:	ret
+
+%etyps:	push	p, t
+	skipe	t, uuoacs(u)
+	 call	%etys0			; Recursive call
+cpopuj:	pop	p, t
+	ret
+
+%etypu:	movei	1, .priou
+	move	2, uuoacs(u)
+	dirst
+	 jfcl
+	ret
+
+	subttl	Misc UUO
+
+%type:	call	tycrif			; Check if we should do a crlf
+%type0:	hrro	1, 40			; Get string
+	psout
+	ret
+
+%print:	hrrz	1, 40			; Get character
+	pbout
+	ret
+
+%confm:	movei	1, cmdblk			; For top level commands
+	movei	2, [flddb. .cmcfm]
+	comnd
+	tlne	1, (cm%nop)
+	 jerror
+	ret
+
+tycrif:	move	t, 40			; Get instruction
+	tlne	t, (<10, 0>)		; Wants cr all the time?
+	 jrst	crlf0			; Yes
+	tlne	t, (<1, 0>)		; Wants fresh line?
+	 jrst	crif			; Yes
+	ret
+
+;+++ Send CLS if chaos and fatal
+%error:	call	crif			; Get a fresh line
+	move	t, 40			; Get instruction
+	tlne	t, (<10, 0>)		; Wants %?
+	 skipa	1, ["?"]		; No
+	 movei	1, "%"
+	pbout
+	trnn	t, -1			; Any message to print?
+	 jrst	%err2			; No
+	call	%etye0			; Yes, print it out
+	movei	1, " "
+	pbout
+	move	t, 40			; And recover instruction
+%err2:	tlnn	t, (<4, 0>)		; Wants JSYS error message?
+	 jrst	%err3
+	movei	1, .priou
+	hrloi	2, .fhslf		; This fork
+	setz	3,
+	erstr
+	 jfcl
+	 jfcl
+%err3:	ldb	t, [point 2, 40, 12]	; Get low order bits of ac field
+	jrst	%errs(t)
+
+%errs:	jrst	go			; 0 - return to command level
+%erret:	haltf				; 1 - return to exec
+	haltf				; 2 - return to exec
+	ret				; 3 - return to user
+
+done:	skipe	chafp			; If chaos
+	 jrst	chadon			; Clean up differently
+	haltf
+	jrst	go
+
+; Local modes:
+; Mode:FAIL
+; Comment Column:40
+; Comment begin:; 
+; End:
+
+	end	<6,,entvec>

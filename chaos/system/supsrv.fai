@@ -1,0 +1,513 @@
+repeat 0,<
+%TDRSU/%TDRSD (needs changes to the way LID is done)
+Should set up CCOC words (%TOALT, %TOSAI, %TOSA1, etc.)
+>
+	title	supsrv - supdup server
+	subttl	runs under VTS (MT)
+
+	search	monsym
+
+; Register definitions
+
+f_0				; Flag AC
+a_1				; Temps
+b_2
+c_3
+d_4
+t_5				; Random - no gurantees
+u_6
+v_7
+p1_10				; Preserved
+p2_11
+p3_12
+p4_13
+p_17				; Stack pointer
+
+ifndef	chaf,<chaf __ 1>	; Chaosnet flag
+define	cha,<ifn chaf>
+define 	arpa,<ife chaf>
+cha,<	printx	Chaosnet SUPDUP Server>
+arpa,<	printx	ARPAnet SUPDUP Server>
+
+opdef	uerr	[1B8]
+opdef	ret	[popj	p,]
+opdef	call	[pushj	p,]
+
+tc%ovr __ 1b11			; Not in MONSYM yet
+
+define	error	(t)
+   <	uerr	[asciz /t/]
+   >
+
+define	loserr	(t)
+   <	uerr	1,[asciz /t/]
+   >
+
+; ITS bits
+%toalt	__ <200000,,0>
+%toclc	__ <100000,,0>
+%toers	__ <40000,,0>
+%tomvb	__ <10000,,0>
+%tosai	__ <4000,,0>
+%tosa1	__ <2000,,0>
+%toovr	__ <1000,,0>
+%tomvu	__ <400,,0>
+%tomor	__ <200,,0>
+%torol	__ <100,,0>
+%tolwr	__ <20,,0>
+%tofci	__ <10,,0>
+%tolid	__ <2,,0>
+%tocid	__ <1,,0>
+%tpmta	__ 400
+%tpcbs	__ 40
+%tpors	__ 10
+%tprsc	__ 4
+
+%tdnop	__ 210			; Terminate header mess with this
+
+arpa,<
+icpskt:	137				; SUPDUP socket
+icpchn	__ 0				; PSI channel
+>
+
+start:	reset
+	move	p, [iowd npdl,pdl]	; Reinitialize stack
+	move	1, [call uuoh]	; Setup for UUOs
+	movem	1, uuohnd
+	movei	1,.sfnvt	; Say nvt logins
+	movei	2,1		;  allowed
+	smon
+	move	1, [sixbit /SYSVER/]	; Get system string
+	sysgt
+	hrroi	1,(2)
+	movei	2,sysver
+	gtblt
+	 erjmp [error		; Complain
+		haltf]		;  and give up
+	setzm	sysmsg		; No startup message yet
+	movsi	1,(gj%sht+gj%old)
+	hrroi	2,[asciz/SYSTEM:SUPDUP-LOGIN.TXT/]
+	gtjfn
+	 erjmp	nomsg
+	move	4,1			; Save in case of error
+	move	2,[7b5+of%rd]
+	openf
+	 erjmp [move 1,4
+		rljfn
+		 jfcl
+		jrst nomsg]
+	hrroi	2,sysmsg
+	movei	3,-1000*5
+	sin
+	 erjmp	.+1			; Just do our best
+	move	1,4
+	closf
+	 erjmp	.+1
+nomsg:
+arpa,<	setom	icpjfn			; No JFN yet
+	movei	1, .fhslf
+	move	2, [levtab,,chntab]	; Set up interrupt stuff
+	sir
+	eir
+	movsi	2, (1b<icpchn>)
+	aic
+> ;arpa
+cha,<	setom	jfn >
+
+loop:
+cha,<	movsi	1,(gj%sht)
+	hrroi	2,[asciz /CHA:.SUPDUP/]
+	gtjfn
+	 erjmp [error <Unable to listen on CHA:.SUPDUP>
+		jrst wait]
+	movem	1,jfn
+	move	2,[10b5+of%rd+of%wr]
+	openf
+	 jrst 	noopen
+> ;cha
+arpa,<	call	doicp
+	 jrst 	wait
+> ;arpa
+	call	getwrd			; Get first word
+	 jrst	loop			; On failure, error already reported
+	move	p1,1			; AOBJN count of following words
+wloop:	call	getwrd
+	 jrst	loop
+	movem	1,hwords(p1)
+	aobjn	p1,wloop
+	move	1,tctyp			; ITS Terminal type
+	caie	1,7			; Must be 7
+	 jrst [	loserr <TCTYP must be 7>  jrst loop ]
+arpa,<	move	1,netsnd >
+cha,<	move	1,jfn >
+	hrroi	2,sysver
+	setz	3,
+	sout
+	 erjmp [loserr  jrst loop]
+	skipn	sysmsg			; Any message there?
+	 jrst	nopmsg
+	hrroi	2,[asciz/
+/]
+	sout
+	 erjmp [loserr  jrst loop]
+	hrroi	2,sysmsg
+	sout
+	 erjmp [loserr  jrst loop]
+nopmsg:	movei	2,%tdnop
+	bout
+	 erjmp [loserr  jrst loop]
+	movei	2,.mosnd
+	mtopr
+	 erjmp [loserr  jrst loop]
+	push	p,1
+	movei	1,=1000		; Sleep for a bit
+	skipe	sysmsg		;  if there's a message there
+	 disms
+	pop	p,1
+arpa,<	movei	2,(1)
+	move	1,netrcv >
+	tlo	1,(an%sup)
+	atnvt			; Make a terminal out of it
+ 	 jrst [	loserr	<Unable to assign NVT>  jrst wait ]
+cha,<	setom	jfn >
+arpa,<	setom	netrcv >
+	movem	1,nvt			; Save designator
+	movei	2,.ttsup
+	sttyp
+	 erjmp [loserr  jrst loop]
+	movei	2,.moslw		; Terminal width
+	move	3,tcmxh			; we do not count the ! column
+	mtopr				
+	 erjmp [loserr  jrst loop]
+	movei	2,.mosll		; Terminal length
+	move	3,tcmxv
+	mtopr
+	 erjmp [loserr  jrst loop]
+	movei 	2,.moslm
+	mtopr
+	 erjmp [loserr  jrst loop]
+; set up TC bits
+	setz	2,
+	sosn	ttyrol			; Can't scroll it right unless glitch
+	 tlo	2,(tc%scr)		; count is 1
+	move	3,ttyopt		; Process capabilities and options
+; %toalt ignored (could set CCOC words)
+	tlne	3,(%toers)		; Selective erase
+	 tlo	2,(tc%clr!tc%scl)
+	tlne	3,(%tomvb)		; Backspace at least
+	 tlo	2,(tc%bs)
+; %tosai ignored (could set CCOC words I suppose)
+	tlne	3,(%tomvu)		; Move up
+	 tlo	2,(tc%mov!tc%hom)	; Assume means can move anywhere
+; %tolwr ignored (could set mode word bits)
+	tlne	3,(%tofci)		; has all bits ?
+	 tlo	2,(tc%met!tc%fci)
+	trne	3,%tpmta		; or at least hacked meta key ?
+	 tlo	2,(tc%met)
+	tlne	3,(%tolid)		; Line I/D
+	 tlo	2,(tc%lid)
+	tlne	3,(%tocid)		; Char I/D
+	 tlo	2,(tc%cid)
+	tlne	3,(%toovr)		; Overwrites?
+	 tlo	2,(tc%ovr)
+	trnn	3,%tpcbs		; Intelligent terminal protocol
+	 jrst [	loserr	<%TPCBS not on>
+		jrst loop ]
+	tlo	2,(tc%vbl)	 	; Has vbl
+	stchr				; Set characteristics word
+	 erjmp [loserr  jrst loop]
+	rtmod				; Do user options
+	 erjmp [loserr  jrst loop]
+; %toclc (set mode word)
+; %tosa1 (set CCOC word)
+	tlne	3,(%tomor)		; More processing
+	 tloa	2,(tm%mor)
+	  tlz	2,(tm%mor)
+	tlne	3,(%torol)		; Wrap vs. scroll
+	 tloa	2,(tm%scr)
+	  tlz	2,(tm%scr)
+	tlo	2,(tm%vbl!tm%itp)	; Causes %TDBEL instead of ^G
+	stmod
+	 erjmp [loserr  jrst loop]
+	rfmod
+	 erjmp [loserr  jrst loop]
+	trz	2,tt%dum		; Set fullduplex
+	stpar
+	 erjmp [loserr  jrst loop]
+	move	1,nvt			; Make job on terminal
+	movei	2,"C"-100
+	sti
+	 erjmp [loserr <Unable to start job>  jrst wait]
+
+;;;Come here after a full startup cycle, or after some error which might
+;;;get better with time.
+wait:
+cha,<	movei	1,=1000 >		; Don't wait but a second before restarting
+arpa,<	movei	1,=10000 >
+waitpc:	disms				; WAITPC must be on DISMS
+	jrst 	loop			; Listen again
+
+
+; CHA: OPENF failed
+noopen:	caie	1,opnx19		; Net not up yet?
+	 error	<Unable to open connection> ; No, something else
+	movei	1,=10000		; Yes, wait a while
+	disms
+	jrst	start
+
+; Get an initialization word from the user (returned in 1)
+
+getwrd:
+cha,<	move	1,jfn >
+arpa,<	move	1,netrcv >
+	movsi	4,-6			; Counter
+	setz	3,			; Assembled word
+getwrl:	lsh	3,6
+	bin
+	 erjmp [loserr  ret]
+	andi	2,77			; Precautions
+	iori	3,(2)
+	aobjn	4,getwrl
+	move	1,3
+	aos	(p)			; Success
+	ret
+
+arpa,<
+; String routines
+movstr:	hrli	2, (<point 7, 0>)
+	push	p, 4			; Save work reg
+movst1:	ildb	4, 2
+	jumpe	4, movst3
+	idpb	4, 1
+	jrst	movst1
+
+; Move string and terminating null
+movst0:	hrli	2, (<point 7, 0>)
+	push	p, 4			; Save work reg
+movst2:	ildb	4, 2
+	idpb	4, 1
+	jumpn	4, movst2
+movst3:	pop	p, 4			; Restore work reg
+	ret
+> ;arpa
+
+; ARPAnet cruft
+arpa, <
+; Return +2 with a connection, or +1 to wait a while
+doicp:	skipl	icpjfn			; Have an ICP JFN?
+	 jrst	doicp1			; Yes, look at it
+	move	1, [point 7, netstr]	; No, get one
+	movei	2, [asciz /NET:/]
+	call	movstr
+	move	2, icpskt		; Socket to listen to
+	movei	3, 10
+	nout
+	 trn
+	movei	2, [asciz /#./]
+	call	movst0
+	movsi	1, (gj%sht)
+	hrroi	2, netstr
+	gtjfn
+	 ret
+	movem	1, icpjfn
+	move	2, [40b5+of%wr]
+	openf
+	 jrst	[move	1, icpjfn
+		 rljfn
+		  trn
+		 setom	icpjfn
+		 ret]
+	movsi	3, 777700+icpchn
+	movei	2, .moain
+	mtopr				; Arm ICP interrupt for this
+	ret
+
+; Check the state of ICP connection
+doicp1:	move	1,icpjfn
+	gdsts
+	ldb	1, [point 4, 2, 3]	; Get connection state
+	caie	1, .nslsn		; Still ok?
+	 jrst	chkic2			; No, see what's up
+	andi	3, 777
+	cain	3, 777			; Host still wild?
+	 ret				; Yes, still ok, return
+	call	icrej2			; No, go flush the jfn
+	jrst	doicp			; And try once again (make a new one)
+
+chkic2:	caie	1, .nsrcr		; Got a RFC?
+	 jrst	icrej2			; No, go get rid of it
+	ldb	1, [point 6, 2, 17]	; Get byte size
+	caie	1, 40			; Is it 32?
+	 jrst	icrej2			; No, reject it then
+	movem	3, frnhst		; Save foreign host
+	movem	4, frnskt		; And socket
+	setom	netrcv			; Go get the real JFNs
+	move	1, [point 7, netstr]
+	movei	2, [asciz /NET:/]
+	call	movstr
+	movei	2, 2
+	addb	2, locskt		; Increment local socket base
+	movei	3, 10
+	nout
+	 trn
+	movei	2, [asciz /#./]
+	call	movstr
+	move	2, frnhst
+	nout
+	 trn
+	movn	2, frnskt
+	subi	2, 2			; U+2 and U+3
+	nout
+	 trn
+	movsi	1, (gj%sht)
+	hrroi	2, netstr
+	gtjfn
+	 jrst	clean
+	movem	1, netsnd
+	movsi	1, (gj%sht)
+	hrroi	2, netstr
+	gtjfn
+	 jrst	clean
+	movem	1, netrcv
+	move	1, icpjfn
+	movei	2, .moacp
+	mtopr				; Accept the ICP
+	move	2, locskt
+	bout				; Send the local socket
+	 erjmp	clean
+	tlo	1, (co%wcl)
+	closf
+	 trn
+	setom	icpjfn
+	move	1, netsnd
+	move	2, [10b5+6b9+of%wr]
+	openf
+	 jrst	clean
+	move	1, netrcv
+	move	2, [10b5+5b9+of%rd]
+	openf
+	 jrst	clean
+	aos	(p)			; Give good return
+	ret
+>;arpa,
+
+; General cleanup (Release the various arpa JFNs, or close the CHAOS connection)
+clean:
+arpa,<
+	skipg	1, netrcv
+	 jrst	icrej1
+	tlo	1, (co%wcl)
+	closf
+	 trn
+	setom	netrcv
+icrej1:	skipg	1, netsnd
+	 jrst	icrej2
+	tlo	1, (co%wcl)
+	closf
+	 trn
+	setom	netsnd
+icrej2:	skipg	1, icpjfn
+	 ret
+	tlo	1, (co%wcl)
+	closf
+	 trn
+	setom	icpjfn
+>;arpa
+cha,<
+	skipg	1,jfn		; anything there?
+	 ret			; Nope
+	tlo	1, (co%wcl)
+	closf
+	 erjmp	.+1		; Ignore any error (might not be there due to ATNVT)
+>
+	ret
+
+arpa,<
+; PSI 
+icppsi:	push	p,1
+	hrrz	1,intpc1		; Are we in wait?
+	caie	1,waitpc+1
+	 jrst	icpps1			; No, do nothing
+	movei	1,loop			; Yes, break out of it.
+	hrrm	1,intpc1
+icpps1:	pop	p,1
+	debrk
+
+> ;arpa
+
+; Only used to handle error and loserr: don't need to save ACs, etc.
+; These UUOs always return +1.
+
+uuoh:	ldb	4,[point 4,uuoee,=12] ; Get AC field
+	hrro	2,uuoee		; Make string ref out of message
+	trne	2,-1		; Any message there?
+	 jrst	uuodis		; yep
+	hrroi	1,ermsg		; no, get last JSYS error
+cha,<	hrroi	2,[asciz/CHASUP: /] >
+arpa,<	hrroi	2,[asciz/SUPSRV: /] >
+	movei	3,0
+	sout			; Build prefix
+	move	2,[.fhslf,,-1]
+	movei	3,-=90
+	erstr
+	 jfcl
+	 jfcl
+	hrroi	2,ermsg
+uuodis:
+cha,<	move	1,jfn >
+arpa,<	move	1,netsnd >
+	skipn	4		; loserr?
+	 movei	1,.priou	; no, error, print it on cty (hopefully)
+	movei	3,0
+	sout
+	 erjmp	.+1		; Ignore errors
+	call	clean		; Clean up the world
+	ret			; Done
+
+cha,<
+jfn:	block	1
+>
+nvt:	block	1
+hwords:					; SUDUP init variables
+tctyp:	block	1
+ttyopt:	block	1
+tcmxv:	block	1
+tcmxh:	block	1
+ttyrol:	block	1
+; following 4 are new, sent by ITS but not used here
+smarts:	block	1
+ispeed:	block	1
+ospeed:	block	1
+funame:	block	1
+	block	3			; Space for extras
+sysver:	block	40			; System ID
+sysmsg:	block	100		; Startup message from SYSTEM:SUPDUP-LOGIN.TXT
+ermsg:	block	=100/5		; Space for ERSTR result
+arpa,<
+frnhst:	0				; Foreign host
+frnskt:	0				; Foreign socket
+icpjfn:	-1				; JFN for network ICP
+netrcv:	-1				; Receive jfn
+netsnd:	-1				; Send jfn
+locskt:	30324,,76			; Local socket base
+netstr:	block	20			; For constructing NET: filenames
+>
+npdl__20
+pdl:	block	npdl
+arpa,<
+levtab:	intpc1
+	0
+	0
+
+chntab:	1,,icppsi
+repeat	=35,<0>	 
+
+intpc1:	block 1
+> ;arpa
+
+	org 40			; UUO nonsense
+uuoee:	0
+uuohnd:	0
+	org
+
+	end	start

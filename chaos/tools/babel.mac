@@ -1,0 +1,180 @@
+	title babel
+	search monsym,macsym
+	search chadfs
+	.require sys:macrel
+
+stdac.
+defip.
+
+mxchad:	3431			;default Peg
+chjfn:	block 1
+cfnam:	block <^d70>/5
+
+
+
+;; Stack
+pdl:	block <pdlsiz==^d128>
+
+start:	reset%
+	move p,[iowd pdlsiz,pdl]
+	call getjcl		;get some JCL, the host to stat
+
+mks:	move t1,[point 7,cfnam]
+	move t2,[point 7,[asciz "CHA:"]]
+	do.
+	 ildb t3,t2
+	 jumpe t3,endlp.
+	 idpb t3,t1
+	 loop.
+	od.
+	move t2,mxchad
+	movei t3,^d8
+	nout%
+	 ercal bomb
+	move t2,[point 7,[asciz ".BABEL"]]
+	do.
+	 ildb t3,t2
+	 idpb t3,t1
+	 jumpn t3,top.
+	od.
+gjf:	movx t1,gj%sht
+	hrroi t2,cfnam
+	setz t3,
+	gtjfn%
+	 ercal bomb
+	movem t1,chjfn
+	movx t2,fld(8,of%bsz)!of%rd	;Hmm.
+	openf%
+	 ercal bomb
+comment |
+	;; get state, and print it
+	move t1,chjfn
+	gdsts%
+	 ercal bomb
+	hrroi t1,[asciz "State: "]
+	psout%
+	movx t1,.priou
+	movei t3,^d10
+	nout%
+	 ercal bomb
+	hrroi t1,[asciz "
+"]
+	psout%
+|
+	movei t4,400*2
+again:	move t1,chjfn
+	bin%
+	 ercal [ jumpe t2,done
+		jrst bomb ]
+ife 0,<
+	movx t1,.priou
+	cain t2,215
+	ifnsk.
+	 movx t2,15
+	 bout%
+	 movx t2,12
+	endif.
+	bout%
+	 ercal bomb
+>
+ifn 0,<
+	hrroi t1,[asciz " 0x"]
+	psout%
+	movx t1,.priou
+	movx t3,<fld(^d16,no%rdx)+fld(2,no%col)+no%zro+no%lfl>
+	nout%
+	 ercal bomb
+	caige t2,100
+	ifskp.
+	 cail t2,177
+	anskp.
+	 hrroi t1,[asciz "("]
+	 psout%
+	 movx t1,.priou
+	 bout%
+	 hrroi t1,[asciz ")"]
+	 psout%
+	endif.
+>
+comment |
+	;; get state, and print it
+	hrroi t1,[asciz "
+State: "]
+	psout%
+	move t1,chjfn
+	gdsts%
+	 ercal bomb
+	movx t1,.priou
+	movei t3,^d10
+	nout%
+	 ercal bomb
+	hrroi t1,[asciz "
+"]
+	psout%
+|
+	sojge t4,again
+
+done:	haltf%
+	jrst done
+
+;; Get JCL
+getjcl:	movei t1,.rsini
+	rscan%
+	 ercal bomb
+	ifn. t1
+	 do.
+	  pbin%
+	  caie t1,.chtab
+	   cain t1,.chspc
+	    loop.
+	  caie t1,.chffd
+	   cain t1,.chlfd
+	    exit.
+	  do.
+	   pbin%
+	   caie t1,.chtab
+	    cain t1,.chspc
+	    ifnsk.
+	     movei t1,.priin
+	     movei t3,8
+	     nin%
+              ifjer.
+;	       hrroi t1,[asciz "Bad host address
+;"]
+;	       esout%
+	       jrst nojcl
+              endif.
+	      movem t2,mxchad
+	      hrroi t1,[asciz "[Sending to host "]
+	      psout%
+	      movei t1,.priou
+	      movei t3,8
+	      nout%
+	       ercal bomb
+	      hrroi t1,[asciz "]
+"]
+	      psout%
+	      exit.
+	    endif.
+	  caie t1,.chffd
+	   cain t1,.chlfd
+	    exit.
+	  loop.
+         od.
+	od.
+	endif.
+nojcl:	movei t1,.priin
+	cfibf%
+	ret
+
+bomb:	hrroi   1,[asciz "JSYS error: "]
+        esout%
+        movx    1,.priou
+        hrloi   2,.fhslf
+        setz    3,
+        erstr%
+         nop
+         nop
+        haltf%
+
+	end start

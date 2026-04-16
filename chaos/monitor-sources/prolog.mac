@@ -4071,12 +4071,15 @@ STKCD1==:1			;TYPE 1 FOR ASGJFR STRINGS
 STKCD2==:2			;TYPE 2 FOR ASGPAG STRINGS
 STKCD3==:3			;TYPE 3 FOR TTY LOCKS
 STKCD4==:4			;TYPE 4 FOR SWAP FREE STRINGS
+ife CHAOS,<
   STKHWD==:STKCD4		;Codes .LE. STKHWD are handled
 				; as right-justified halfword values
 				; those greater than STKHWD are
 				; handled as fullword values
+>
 ifn CHAOS,<
 STKCD5==:5			; 100: TYPE 5 FOR CHAOS NET CONNS DURING ICP
+  STKHWD==:STKCD5
 >
 
 ;SYSERR DEFINITIONS

@@ -1,0 +1,5 @@
+This directory tree contains work-in-progress files to support the
+VTSOP (virtual terminal system) display/terminal operations, which
+eventually should make SUPDUP support better. 
+
+Terminal IO handling is incredibly hairy, though.

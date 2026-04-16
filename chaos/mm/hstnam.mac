@@ -375,7 +375,9 @@ $PRRTS::NPROTS,,NPROTS
 	DN Chaos,$CHSNS,$CHSSN,$CHSCA	; Chaosnet
 	DN DECnet,$DECNS,$DECSN,$DECCA	; DECnet
 	DN Internet,$INTNS,$INTSN,$INTCA ; Internet A/MX/WKS/HINFO (no address)
+ifn 0,<	;; [BV] skip this
 	DN MX,$MXNS,$MXSN,$MXCA		; MX Internet
+>
 	DN Pup,$PUPNS,$PUPSN,$PUPCA	; Pup Ethernet
 	DN Special,$SPCNS,$SPCSN,$SPCCA	; Special external network
 	DN TCP,$GTHNS,$GTHSN,$GTHCA	; TCP/IP Internet

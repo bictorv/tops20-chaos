@@ -85,20 +85,20 @@ jcl:	move t1,njfn
 	movei t3,chapkt
 	mtopr			;read the RFC
 	 ercal 	jerr
+	move p2,[point 7,rsbuf+1]	;Hack
 	movei t3,chapkt
 	load t4,cpknb,(t3)	;get byte count
 	caig t4,5		;Anything more than "NAME "?
-	 ret
+	 jrst nojcl
 	move p1,[point 8,chpkdt(t3)]
 	do.
 	 ildb t1,p1
 	 caie t1," "
 	  sojg t4,top.		;skip until space
 	 caie t1," "
-	  ret			;No JCL after all
+	  jrst nojcl			;No JCL after all
 	enddo.
 	;; copy actual args
-	move p2,[point 7,rsbuf+1]	;Hack
 	setz p3,
 	do.
 	 ildb t1,p1
@@ -107,7 +107,7 @@ jcl:	move t1,njfn
 	 aos p3
 	 sojg t4,top.
 	enddo.
-	;; end with LF
+nojcl:	;; end with LF
 	movei t1,.chlfd
 	idpb t1,p2
 	setz t1,

@@ -1,0 +1,8 @@
+Chives has been patched in the following ways:
+
+1. Don't care if we don't get an authoritative answer. These days we
+   must expect to use a forwarder which doesn't. 
+2. Use a new local port number for every request, to support
+   filtering/forwarding of requests based on class (CH/IN).
+3. Use a "fully random" local port for requests (rather than only the
+   low 8 bits) to have a larger range.

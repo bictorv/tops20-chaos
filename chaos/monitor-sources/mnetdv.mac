@@ -344,6 +344,11 @@ Cause:	The SYSTEM:INTERNET.ADDRESS file was either not found or is corrupted.
 
 Action:	Insure that the file is in SYSTEM: and is valid.
 >,,<DB%NND>)			;[8969][7.1261] 
+
+ifn chaos,<
+	call cdrini		;Read Chaosnet config
+	 bug.(inf,NOCDDR,MNETDV,SOFT,<Fail to find SYSTEM:CHAOSNET.ADDRESS file>,,<>,,<DB%NND>)
+>
 
 ;Load the internet host names file
 
@@ -1480,6 +1485,166 @@ TCRLF:	PUSH P,T1		;Save T1
 	RET			;Return to caller
 
 	ENDTV.			;End of HSTINI TRVAR
+IFN CHAOS,<
+	SUBTTL Chaos config routines -- read SYSTEM:CHAOSNET.ADDRESS
+
+;CDRINI
+; Similar to ADRINI, but only Chaosnet things. Skip returns unless the file can't be opened.
+; Entries are of the form:
+;  CHAOSNET-ADDRESS:3443, CHAOS-IP-GATEWAY:10.1.1.72, CHAOS-ADDR-DOMAIN:CH-ADDR.NET
+; and there is only one entry.
+; ADRINI should be called before this, perhaps.
+; Call this when initializing Chaos, I suppose.
+
+CDRINI::SAVEPQ			;Watch your Ps and Qs
+	TRVAR <<LINBUF,LINSIZ>,<TMPBUF,BUFSIZ>> ;[8975]
+	MOVX T1,GJ%OLD!GJ%SHT	;[8975] Old file, short form
+	HRROI T2,[ASCIZ /SYSTEM:CHAOSNET.ADDRESS/] ;The filename desired
+	GTJFN			;[8975] Get a JFN on that file please
+	 RET			;[8975] Can't, probably file not found
+	MOVEM T1,P3		;[8975] Save JFN in P3
+	MOVX T2,FLD(7,OF%BSZ)!OF%RD ;[8975] Open for reading
+	OPENF			;[8975] Pry it open
+	 ERJMP CDRINO		;[8975] Can't open it!
+
+	call gbol		;Get beginning of line
+	 jrst cdrdun		;Done
+cdrlp0:	call gfield		;Get next field
+	call reeat		;backup over terminator
+
+	movei t1,chnam		;Chaos command table
+	hrroi t2,tmpbuf
+	tbluk			;look it up
+	 erjmp .+1
+	txne t2,tl%nom!tl%amb	;Good name?
+	 jrst cdrund		;Go complain and be done
+	move t1,(t1)
+	call (t1)
+	call gch		;Check char after previous command
+	 jrst cdrdun		;EOF/EOL, so done
+	caie t2,","		;Comma OK
+	 jrst cdrker		; else format error
+	jrst cdrlp0		;Go for next command
+
+cdrdun:	move t1,p3
+	closf			;Close CHAOSNET.ADDRESS
+	 erjmp .+1
+	retskp
+
+;[8975] Here when OPENF fails for SYSTEM:INTERNET.ADDRESS
+
+cDRINO:	MOVE T1,P3		;[8975] Load the JFN
+	RLJFN			;[8975] Release it
+	 ERJMP .+1		;[8975] Avoid the usual MONNEJ
+	TMSG <%Can't open SYSTEM:CHAOSNET.ADDRESS 
+>				;[8975] Useful error message
+	RET			;[8975] Return +1 (error)
+
+;; CHAOS-ADDRESS keyword
+ADCHAO:	call gch		;Read terminator of keyword
+	 jrst adcher
+	caie t2,":"
+	 jrst adcher
+	move t1,p4		;ptr to data
+	movei t3,8		;octal
+	nin%
+	 erjmp adchb
+	movem t1,p4		;restore pointer
+	;; test value
+	caig t2,400
+	 jrst adchb
+	caile t2,177777
+	 jrst adchb
+	movem t2,mychad		;Save my Chaos address
+	callret reeat
+
+;; CHAOS-ADDR-DOMAIN keyword
+ADCHDN:	call gch		;Read terminator of keyword
+	 jrst adchdr
+	caie t2,":"
+	 jrst adchdr
+	call gfield
+	caie t2,","
+	ifskp.
+	 call reeat
+	else.
+	 setz t2,
+	endif.
+	move t4,[point 7,tmpbuf]
+	call padchd		;Parse chaos addr domain
+	ret
+
+;; Parse "here.is.a.dom.ain" pointed to by t4
+;; to DNS data format, label by label with length bytes
+padchd:	saveac <t1,t3,p1,p2>
+	setzb p1,p2
+	;; move t4,[point 7,tmpbuf]
+	move t3,[point 7,chaddn]
+	push p,t4		;Save beginning of label
+	do.
+	 ildb t1,t4
+	 ifn. t1
+	  ;; there was a byte
+	   aos p1		;count it
+	   caie t1,"."
+	    loop.
+	   sos p1		;Un-count dot
+	 else.
+	  ;; If we found an empty label, end it all.
+	  jumpe p1,endlp.
+	 endif.
+	 ;; Found dot (or null), so end of label
+	 idpb p1,t3		;Write length byte
+	 pop p,p2		;Get beg ptr
+	 do.
+	  ildb t1,p2		;copy p1 bytes
+	  ;; pbout%
+	  idpb t1,t3
+	  sojg p1,top.
+	 od.
+	 push p,t4		;Save beginning of next label
+	 loop.
+	od.
+	pop p,t4
+	setz t1,
+	idpb t1,t3		;Make sure we end with an empty label
+	ret
+
+;; CHAOS-IP-GATEWAY keywork
+ADCHGW:	call gch		;Read terminator of keyword
+	 jrst adchgr
+	caie t2,":"
+	 jrst adchgr
+	call adg4db		;Read 4 decimal bytes
+	 jrst adchgb
+	movem t1,chipgw
+	callret reeat		;reeat terminator and return
+
+cDRKER:	JSP T1,cDRERR
+	ASCIZ /%Format error/
+adcher: jsp t1,cdrerr
+	asciz /%Colon not after CHAOS-ADDRESS/
+adchb:	jsp t1,cdrerr
+	asciz /%Invalid CHAOS-ADDRESS/
+adchdr: jsp t1,cdrerr
+	asciz /%Colon not after CHAOS-ADDR-DOMAIN/
+adchgr:	jsp t1,cdrerr
+	asciz /%Colon not after CHAOS-IP-GATEWAY/
+adchgb:	jsp t1,cdrerr
+	asciz /%Invalid CHAOS-IP-GATEWAY value field/
+cdrund:	jsp t1,cdrerr
+	asciz /%Failed to parse keyword/
+
+cdrerr:	hrli t1,(point 7)
+	psout
+	hrroi t1,[asciz " in SYSTEM:CHAOSNET.ADDRESS file
+"]
+	psout
+	call perror
+	jrst cdrdun
+
+endtv.				;End of TRVAR for CDRINI
+>
 	SUBTTL Address File Routines -- Read SYSTEM:INTERNET.ADDRESS
 
 ;ADRINI
@@ -1631,102 +1796,6 @@ IFN PANDASW,<	;[2]
 	CALL (T1)		; go to it
 	JRST ADRLP3		; and loop
 
-IFN CHAOS,<
-;; CHAOS keyword
-ADCHAO:	call gch		;Read terminator of keyword
-	 jrst adcher
-	caie t2,":"
-	 jrst adcher
-	move t1,p4		;ptr to data
-	movei t3,8		;octal
-	nin%
-	 erjmp adchb
-	movem t1,p4		;restore pointer
-	;; test value
-	caig t2,400
-	 jrst adchb
-	caile t2,177777
-	 jrst adchb
-	movem t2,mychad
-	callret reeat
-
-adcher: jsp t1,adrerr
-	asciz /%Colon not after CHAOS-ADDRESS/
-
-adchb:	jsp t1,adrerr
-	asciz /%Invalid CHAOS address/
-
-;; CHAOS-ADDR-DOMAIN keyword
-ADCHDN:	call gch		;Read terminator of keyword
-	 jrst adchdr
-	caie t2,":"
-	 jrst adchdr
-	call gfield
-	caie t2,","
-	ifskp.
-	 call reeat
-	else.
-	 setz t2,
-	endif.
-	move t4,[point 7,tmpbuf]
-	call padchd		;Parse chaos addr domain
-	ret
-
-;; Parse "here.is.a.dom.ain" pointed to by t4
-;; to DNS data format, label by label with length bytes
-padchd::saveac <t1,t3,p1,p2>
-	setzb p1,p2
-	;; move t4,[point 7,tmpbuf]
-	move t3,[point 7,chaddn]
-	push p,t4		;Save beginning of label
-	do.
-	 ildb t1,t4
-	 ifn. t1
-	  ;; there was a byte
-	   aos p1		;count it
-	   caie t1,"."
-	    loop.
-	   sos p1		;Un-count dot
-	 else.
-	  ;; If we found an empty label, end it all.
-	  jumpe p1,endlp.
-	 endif.
-	 ;; Found dot (or null), so end of label
-	 idpb p1,t3		;Write length byte
-	 pop p,p2		;Get beg ptr
-	 do.
-	  ildb t1,p2		;copy p1 bytes
-	  pbout%
-	  idpb t1,t3
-	  sojg p1,top.
-	 od.
-	 push p,t4		;Save beginning of next label
-	 loop.
-	od.
-	pop p,t4
-	setz t1,
-	idpb t1,t3		;Make sure we end with an empty label
-	ret
-
-adchdr: jsp t1,adrerr
-	asciz /%Colon not after CHAOS-ADDR-DOMAIN/
-
-;; CHAOS-IP-GATEWAY keywork
-ADCHGW:	call gch		;Read terminator of keyword
-	 jrst adchgr
-	caie t2,":"
-	 jrst adchgr
-	call adg4db		;Read 4 decimal bytes
-	 jrst adchgb
-	movem t1,chipgw
-	callret reeat		;reeat terminator and return
-
-adchgr:	jsp t1,adrerr
-	asciz /%Colon not after CHAOS-IP-GATEWAY/
-adchgb:	jsp t1,adrerr
-	asciz /%Invalid CHAOS-IP-GATEWAY value field/
->
-
 ;DEFAULT keyword, used to set this address as the primary host name.
 ;[9156] Sets DEFNET, NETFLD, DEFADR, NOHOST
 
@@ -2079,6 +2148,14 @@ DEFINE KEY(NAME,DATA)
   ..TABLE==..TABLE+1		; Increment the count of entries
 >
 
+ifn CHAOS,<
+TABLE(CHNAM)
+KEY CHAOS-ADDR-DOMAIN,ADCHDN	;Chaosnet address domain, e.g. CH-ADDR.NET
+KEY CHAOS-ADDRESS,ADCHAO	;Chaosnet address
+KEY CHAOS-IP-GATEWAY,ADCHGW	;Chaosnet IP gw
+TABEND(CHNAM)
+>
+
 ; Table of interface type names
 
 TABLE(INTNAM)
@@ -2094,11 +2171,6 @@ TABEND(INTNAM)
 ; Take of modifiers
 
 TABLE(TYPNAM)
-ifn chaos,<
-KEY CHAOS-ADDR-DOMAIN,ADCHDN	;Chaosnet address domain, e.g. CH-ADDR.NET
-KEY CHAOS-ADDRESS,ADCHAO	;Chaosnet address
-KEY CHAOS-IP-GATEWAY,ADCHGW	;Chaosnet IP gw
->
 KEY DEFAULT,ADDFLT		; This is the 'primary' address for host
 KEY LOGICAL-HOST-MASK,ADLHM	; Logical host mask for this network
 KEY NCP,ADNCP			; network uses Arpanet NCP protocal
