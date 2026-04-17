@@ -39,13 +39,15 @@ The Chaosnet host name is initialized from the IP host name, using `GTHST%`, so 
 
 ### DNS resolver
 
-To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but *note that it does not handle the INternet class* - **see [below](#resolv)**). Use the `DSERVE` directive in the config. 
+To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but *note that it does not handle the INternet class* - **SEE [BELOW](#resolv)**). Use the `DSERVE` directive in the config. 
 
 You may also want to include the domain `Chaosnet.NET.` in your `RSEARCH` directives, to get shorthand addresses to all ITS hosts on Chaosnet.
 
 **Example:**
 ```
-DSERVE 158.174.114.186    ;This is the current address of DNS.Chaosnet.NET
+DSERVE 92.34.149.133    ;These are the current addresses of DNS.Chaosnet.NET
+DSERVE 65.108.62.138
+DSERVE 159.69.213.219
 RSEARCH .                 ;Try fully qualified first
 RSEARCH my.local.dom.ain. ; then my local domain
 RSEARCH Chaosnet.NET.     ; then Chaosnet.NET
@@ -150,13 +152,13 @@ Some supplemental documentation for JSYSes with extended functionality:
 
 ### RESOLV
 
-RESOLV should (be able to) use separate DNS servers for IN and CH classes, since CH can often be served by DNS servers which don't provide IN to just anyone  (e.g. `DNS.Chaosnet.NET`), and IN servers in general have no clue about CH.
+RESOLV should ideally be able to use separate DNS servers for IN and CH classes (but it doesn't), since CH can often be served by DNS servers which don't provide IN to just anyone  (e.g. `DNS.Chaosnet.NET`), and IN servers in general have no clue about CH. 
 
-The **workaround** is to set up your own caching server to handle both IN and CH ([see here](https://chaosnet.net/chaos-dns)).
+One workaround is to set up your own caching server to handle both IN and CH ([see here](https://chaosnet.net/chaos-dns)).
 
-Another, perhaps more complex, workaround is to use nftables (or perhaps iptables) to reroute DNS queries from TOPS-20 to different DNS servers depending on the class (CH to `DNS.Chaosnet.NET`, IN to your standard server). 
+Another workaround is to use nftables (or perhaps iptables) to reroute DNS queries from TOPS-20 to different DNS servers depending on the class (CH to `DNS.Chaosnet.NET`, IN to your standard server). You can find a python/nftables program to set up such forwarding in [nft-dnschaos.py](nft-dnschaos.py).
 
-To make this work the TOPS-20 resolver in `<CHAOS.CHIVES>` needed a patch to use new source ports for each request. It is also patched to not insist on authoritative answers.
+To make this work the TOPS-20 resolver in `<CHAOS.CHIVES>` needed a patch to use new source ports for each request. It is also patched to not insist on authoritative answers, which you typically don't get from a forwarding resolver these days.
 
 ## Limitations
 
