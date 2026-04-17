@@ -420,7 +420,7 @@ CHATC5:	JUMPE T4,[RCALL RELPKM,1 ;DONE IF NO OUTPUT GENERATED
 ; Note!!  We assume we're called from TTCH7 scheduler level, so we
 ; don't need to worry about locking the tty data bases.
 
-	swapcd
+	RESCD			;Called from scheduler, must be resident
 
 CVTUPI::STKVAR<CVUPDD,CVUPKT,CVUFLS>
 	SETZM CVUFLS		;NOT FLUSHING ANYTHING
