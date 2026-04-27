@@ -1,4 +1,16 @@
-This directory contains some mainly untested Chaosnet servers and
-tools.
+This directory contains some toy Chaosnet programs.
 
-More documentation will appear when they are tested.
+Some were used when developing the modern "port" of TOPS-20 Chaosnet.
+BABEL, BYE, ECHO and HOSTAT take an octal host address as JCL, and connect to the respective contact at that host, and present the result.
+
+CHSTAT prints the content of the SYSGT table CHSTAT ("the Chaosnet
+status block") in decimal and octal, and the values of CHPMXT (the max
+size of Chaos packets) and MYCHAD (the host Chaosnet address).
+
+CHSTAT contains very little interesting data, only indices 0 and 2 are
+non-zero. See the new documentation of SYSGT in the TOPS-20 Chaosnet
+repo for more info.
+
+FINGER.FAI is an old implementation of Finger.
+SUPDUP.FAI is a Supdup client, which requires the VTS framework
+currently being "ported".

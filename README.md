@@ -38,7 +38,7 @@ Add the file `SYSTEM:CHAOSNET.ADDRESS`, with the following parameters:
 - `CHAOS-IP-GATEWAY:`*a.b.c.d* where *a.b.c.d* is the IP address of a [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) which is configured to accept Chaos-over-IP from the IP of your TOPS-20 system (see [below](#chaosnet-bridge)).
 - `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`, max len 50. (Optional: the default *dname* is coded in `STG.MAC`, at `CHADDN`.)
 
-**Example:** the IP address of the TOPS-20 system is 10.0.1.11/24, the Chaosnet bridge has IP 10.0.1.1, and the TOPS-20 Chaosnet address is 3412 (octal).
+**Example:** the Chaosnet bridge has IP 10.0.1.1, and the TOPS-20 Chaosnet address is 3412 (octal).
 ```
 CHAOS-ADDRESS:3412,CHAOS-IP-GATEWAY:10.0.1.1
 ```
@@ -87,6 +87,9 @@ Both simple RFC-ANS protocols and stream protocols seem to work.
 
 `CHANM%` uses `GTDOM%`, so works. See [documentation](doc/CHANM.md).
 
+See [further documentation on source code edits here](doc/monitor-edits.md).
+
+
 Surprisingly, the `TELNET` and `MMAILR` programs of the Panda distribution already handled Chaosnet! Both have been fixed to change the priority order between TCP/Internet and Chaosnet, to prefer Chaosnet. A new `SMTCHA` program which implements an SMTP server for Chaosnet has been added (see below).
 
 Sending and receiving "SEND" messages and mail works, if you install the modified MM mailsystem (see below) and the server for the `SEND` contact (see below). 
@@ -120,6 +123,8 @@ Support for the following has been added:
 
 Also, the `FINGER` command is allowed when not-logged-in, and takes a `/CHAOSNET` switch (to show only Chaosnet connections).
 
+See [further documentation on source code edits here](doc/exec-edits.md).
+
 ## Notes on programming
 
 Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) documentation.
@@ -131,11 +136,6 @@ Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html
 ### New JSYSes
 
 - [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTDOM%`.)
-- [VTSOP%](doc/VTSOP.md) (JSYS 635), to do display dependent operations (**NYI**)
-- [RTMOD%](doc/RTMOD.md) (JSYS 636), to read terminal modes.
-- [STMOD%](doc/STMOD.md) (JSYS 637), to set terminal modes.
-- [RTCHR%](doc/RTCHR.md) (JSYS 640), to read terminal characteristics.
-- [STCHR%](doc/STCHR.md) (JSYS 641), to set terminal characteristics.
 
 Some supplemental documentation for JSYSes with extended functionality: 
 
@@ -146,6 +146,12 @@ Some supplemental documentation for JSYSes with extended functionality:
   - [OPENF%](doc/OPENF.md),
   - [MTOPR%](doc/MTOPR.md)
 
+The following new JSYSes are only enabled with the `VTSSW` compile-time setting enabled:
+- [VTSOP%](doc/VTSOP.md) (JSYS 635), to do display dependent operations (**NYI**)
+- [RTMOD%](doc/RTMOD.md) (JSYS 636), to read terminal modes.
+- [STMOD%](doc/STMOD.md) (JSYS 637), to set terminal modes.
+- [RTCHR%](doc/RTCHR.md) (JSYS 640), to read terminal characteristics.
+- [STCHR%](doc/STCHR.md) (JSYS 641), to set terminal characteristics.
 
 ## What does not work yet
 
@@ -167,6 +173,10 @@ One workaround is to set up your own caching server to handle both IN and CH ([s
 Another workaround is to use nftables (or perhaps iptables) to reroute DNS queries from TOPS-20 to different DNS servers depending on the class (CH to `DNS.Chaosnet.NET`, IN to your standard server). You can find a python/nftables program to set up such forwarding in [nft-dnschaos.py](nft-dnschaos.py).
 
 To make this work the TOPS-20 resolver in `<CHAOS.CHIVES>` needed a patch to use new source ports for each request. It is also patched to not insist on authoritative answers, which you typically don't get from a forwarding resolver these days.
+
+## Tips for running your TOPS-20 system
+
+See [here](TIPS.md) for some general tips about running your TOPS-20 system.
 
 ## Limitations
 
