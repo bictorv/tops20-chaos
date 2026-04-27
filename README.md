@@ -150,12 +150,12 @@ Some supplemental documentation for JSYSes with extended functionality:
 ## What does not work yet
 
 - Supdup NVTs (Network Virtual Terminals) don't work (but regular TELNET NVTs do work, [see here](https://github.com/bictorv/chaosnet-bridge/blob/master/tools/telnet.py) for a Chaosnet TELNET client.).
-- DECnet is disabled for now, so that doesn't work.
 - SDDT isn't updated with new symbols (but otherwise works).
 
 ## What should be done later
 
 - SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
+- DECnet now is enabled, and seems to "work" (with `decnet=true` on `devdef ni0` config in klh10), but should be tested with [HECnet](https://gunkies.org/wiki/HECnet)/[HECnet](http://mim.stupi.net/hecnet.htm)/[HECnet](http://mim.stupi.net/pydecnet.htm) too.
 - Summarise what changes were done to the original.
 
 ### RESOLV

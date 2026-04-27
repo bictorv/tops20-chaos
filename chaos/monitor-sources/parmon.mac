@@ -14,7 +14,7 @@ KNIN==:1			; KLNI exists
 IPNIN==:1			; IP on KLNI
 IPNIAN==:2			; alternative NI address interfaces
 IPCIN==:0			; IP on CI
-DCN==:0				; DECnet
+DCN==:1				; DECnet
 FEN==:1				; FE devices
 STRN==:10			; maximum number of structures
 MTAN==:2			; number of magtapes
