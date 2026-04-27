@@ -1,0 +1,36 @@
+@fork monitr
+@ddt
+; Implement Swedish daylight savings rules, replacing the US ones.
+; cf https://sv.wikipedia.org/wiki/Sommartid#Sverige
+; Latest rule change 1996
+=dstbgn/
+*1996.
+; begin last Sunday in March
+=dston/
+*lstmar
+; end last Sunday in October
+=dstoff
+*lstoct
+; Previous rule 1981: March-Sep
+=dstbgn+1/
+*1981.
+=dston+1/
+*lstmar
+=dstoff+1/
+*lstsep
+; Previous rule 1980: April-Sep
+=dstbgn+2/
+*1980.
+=dston+2/
+*lstapr
+=dstoff+2/
+*lstsep
+; No DST 1917-1979
+; Previous rule 1916: 15 May - 30 Sep, but ignore that
+=dstbgn+3/
+*1858.
+=dston+3/
+*400.
+=dstoff+3/
+*400.
+*^Z
