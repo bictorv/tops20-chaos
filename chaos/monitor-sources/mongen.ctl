@@ -122,7 +122,7 @@
 @COMPILE MON:ENQSRV.MAC R:ENQSRV	;[7.1072] Cluster-wide ENQ/DEQ protocol
 @COMPILE MON:DOB.MAC R:DOB		;[7.1081] DOB JSYS and code
 @COMPILE MON:PIPE.MAC R:PIPE		;Data pipes
-@compile mon:site.mac+mon:chaos.mac r:chaos ; Chaosnet support
+@compile mon:chaos.mac r:chaos 		; Chaosnet support
 @compile mon:ttchdv.mac r:ttchdv	; Chaosnet NVT support
 @COMPILE MON:KLHSRV.MAC R:KLHSRV	;KN10 routines
 					;Monitor name string and version

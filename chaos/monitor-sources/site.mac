@@ -1,4 +1,5 @@
 PANDASW==:1			; PANDA features
 CHAOS==:1			;Chaosnet!
 CHINET==:1			;over IP
+VTSSW==:0			; No VTS support (yet)
 NTTCVT==:^d40			;Number of Chaos NVTs

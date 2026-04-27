@@ -1468,11 +1468,13 @@ DEFJS NTINF,632,MSEC1		;NETWORK INFORMATION JSYS
 DEFJS INFO,633,XCDSEC		;[7.1076] INFO% monitor call (in section 6)
 DEFJS DOB,635,XCDSEC		;[7.1081] Dump On Bugchk control JSYS
 
+IFN VTSSW,<
 ;;DEFJS VTSOP,635,MSEC1,,OLD	;99 
 DEFJS RTMOD,636,MSEC1,,OLD	;99
 DEFJS STMOD,637,MSEC1,,OLD	;99
 DEFJS RTCHR,640,MSEC1,,OLD	;99
 DEFJS STCHR,641,MSEC1,,OLD	;99
+>
 				;636-716 reserved
 IFN PANDASW,<	;[1]
 DEFJS IDLE,701,XCDSEC		;RETURN IDLE TIME
@@ -1733,8 +1735,9 @@ DEFSTR(PIDH,.IPKDH,31,32)       ; PACKET.INTERNET.DESTINATION-HOST
 AN%TCP==:1B0	      ;TOPS20AN	; RH of 1 contains TCP JCN instead
 				; of JFN; Implies AN%NTP
 AN%NTP==:1B2	      ;TOPS20AN	;NEW TELNET PROTOCOL
+IFN VTSSW,<
 AN%SUP==:1B3	      ;99 SUPDUP protocol
-
+>
 
 ;ATACH
 
@@ -6987,6 +6990,7 @@ TT%DUM==:3B33			;DUPLEX MODE
 TT%PGM==:1B34			;PAGE MODE
 TT%CAR==:1B35			;CARRIER STATE
 
+IFN VTSSW,<
 ;; VTS stuff
 ; Terminal characteristics word
 TC%MOV==1B0			; Absolute or relative cursor motion
@@ -7016,7 +7020,7 @@ TM%GRF==1B6			;289 Perform Graphics Functions
 TM%RSU==1B7			;+++
 
 TM%ITP==1B17			; Intelligent terminal protocol in use
-
+>; IFN VTSSW
 
 ;DIRECTORY PROTECTION DEFINITIONS (3 6-BIT FIELDS: OWNER, GROUP, WORLD)
 
@@ -7337,6 +7341,7 @@ NUMVAL==:5
 
 RM%ROM==:1B0			;IF SET, ACTIVATE ROM
 
+IFN VTSSW,<
 ; VTS function codes
 
 	.VTCNT==:1		; First arg is repeat count unless otherwise
@@ -7377,6 +7382,7 @@ RM%ROM==:1B0			;IF SET, ACTIVATE ROM
 
 DP%AG1==1B1			; First arg (in 3) exists
 DP%AG2==1B2			; Second arg (in 4) exists
+>; IFN VTSSW
 	SUBTTL General Fields (TOPS20AN)
 
 ;***********************************************
@@ -8752,10 +8758,12 @@ IFN CHAOS,<
 .ERR (3047,CHAOX4,<No LOS received for connection>)
 .ERR (3050,CHAOX5,<Not allowed to use Chaosnet>)
 >
+IFN VTSSW,<
 ; VTSOP errors
 .ERR (3060,VTSX01,<Invalid VTS function>)
 .ERR (3061,VTSX02,<Terminal cannot perform VTS function>)
 .ERR (3062,VTSX03,<Missing required argument to VTS function>)
+>
 IFN CHAOS,<
 .ERR (3100,CHNX01,<Invalid or Unknown Chaosnet Host Name>)
 .ERR (3101,CHNX02,<Invalid or Unknown Chaosnet Host Number>)

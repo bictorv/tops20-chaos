@@ -6737,10 +6737,10 @@ IFN PANDASW,<	;[13]
 	0			; 23 -     "     "     "
 	0			; 24 -     "     "     "
 	0			; 25 -     "     "     "
-ifn 0,<
+ife VTSSW,<
 	0			; 26 -     "     "     "
 >
-ifn 1,<
+ifn VTSSW,<
 	TY(3,0,0,0,0,80,24)	; 26 - SUPDUP VT
 >
 	0			; 27 -     "     "     "
@@ -6825,10 +6825,10 @@ IFN PANDASW,<	;[13]
 	TTNAM ()		; 23 -     "     "     "
 	TTNAM ()		; 24 -     "     "     "
 	TTNAM ()		; 25 -     "     "     "
-ifn 0,<
+ife VTSSW,<
 	TTNAM ()		; 26 -     "     "     "
 >
-ifn 1,<
+ifn VTSSW,<
 	TTNAM (SUPDUP)		; 26 - SUPDUP VT
 >
 	TTNAM ()		; 27 -     "     "     "
@@ -6908,12 +6908,12 @@ IFN PANDASW,<	;[13]
 	TY1 (VT100T,1)		; VT100
 	TY1 (0)			; 17 - LA38
 	TY1 (0,1)		; 18 - LA120
-ifn 1,<
+ife VTSSW,<
    REPEAT ^D16,<		;TYPES 19-34 ARE NOT DISPLAYS
 	TY1 (0)
 >
 >
-ifn 0,<
+ifn VTSSW,<
    repeat <^d26-^d19>,<
 	TY1 (0)			;19-25 are not displays
    >
