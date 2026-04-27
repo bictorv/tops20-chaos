@@ -10,3 +10,4 @@ chaos2*.tpr
 chaos2*.tps
 panda/**
 chaos.old/**
+chaos.prev/**

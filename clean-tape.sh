@@ -5,7 +5,7 @@
 # Ho hum.
 
 # Output files
-for x in rel exe bin unv log; do
+for x in rel exe bin unv log tmp; do
     find chaos -name "*.$x" -exec rm {} \; ;
 done
 
