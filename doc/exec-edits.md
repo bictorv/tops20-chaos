@@ -6,6 +6,10 @@ Summary of EXEC edits for Chaosnet. Might not always be up-to-date or complete.
 
 Print "(Chaos)" suffix for SYSDPY etc. FINGER /CHAOSNET switch.
 
+## EXEC1
+
+Not a Chaos-related patch: Don't blank the screen on logout - the user can write BLANK in their LOGOUT.CMD if they want it.
+
 ## EXEC4
 
 Directory privilege setting for CHAOSNET-ACCESS
