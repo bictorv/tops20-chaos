@@ -92,6 +92,8 @@ See [further documentation on source code edits here](doc/monitor-edits.md).
 
 Surprisingly, the `TELNET` and `MMAILR` programs of the Panda distribution already handled Chaosnet! Both have been fixed to change the priority order between TCP/Internet and Chaosnet, to prefer Chaosnet. A new `SMTCHA` program which implements an SMTP server for Chaosnet has been added (see below).
 
+The TELSER.FAI program needed a fix to set AN%NTP in the ATNVT% call, to mark the connection as "new Telnet".
+
 Sending and receiving "SEND" messages and mail works, if you install the modified MM mailsystem (see below) and the server for the `SEND` contact (see below). 
 
 ### Server programs

@@ -666,6 +666,10 @@ ifn VTSSW,<
 	IFIW!NVT300		;99 SUPDUP - deferred 300
 	IFIW!NVTCLC		;99 SUPDUP - reading console loc
 >
+ife VTSSW,<
+	IFIW!NVTNRM		;Not used
+	IFIW!NVTNRM		;Not used
+>
 
 ;NVTNRM - NORMAL NVT CHARACTER PROCESSING
 

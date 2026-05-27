@@ -12,6 +12,8 @@ staclf==stats+6			; # times closf after failing atnvt failed
 stasmf==stats+7			; # times smon failed
 stacon==stats+10		; successful connections
 
+ifndef an%ntp,<an%ntp==1b2>
+
 pdl: block <pdlz==42>
 
 jfn=10
@@ -61,6 +63,7 @@ loop:	 haltf
 	openf
 	 erjmp [aos staopf
 		jrst nocon]
+	tlo 1,(an%ntp)
 	atnvt
 	 erjmp [aos staanf
 		call jerr
