@@ -1469,11 +1469,11 @@ DEFJS INFO,633,XCDSEC		;[7.1076] INFO% monitor call (in section 6)
 DEFJS DOB,635,XCDSEC		;[7.1081] Dump On Bugchk control JSYS
 
 IFN VTSSW,<
-;;DEFJS VTSOP,635,MSEC1,,OLD	;99 
 DEFJS RTMOD,636,MSEC1,,OLD	;99
 DEFJS STMOD,637,MSEC1,,OLD	;99
 DEFJS RTCHR,640,MSEC1,,OLD	;99
 DEFJS STCHR,641,MSEC1,,OLD	;99
+DEFJS VTSOP,642,MSEC1,,OLD	;New number!!
 >
 				;636-716 reserved
 IFN PANDASW,<	;[1]
@@ -4368,6 +4368,10 @@ IFN PANDASW,<	;[1]
 	MO%NBO==:1B34		;Network binary output (WILL TRNBIN)
 	MO%BSP==:1B35		;Do not translate backspace to rubout
 >;IFN PANDASW
+ifn VTSSW,<
+;; VTS, new number (was 60 in MIT v5, previously 52 in MIT v4)
+.MOFCI==:65			;221 Read full 12-bit character
+>
 
 ;NET MTOPR NUMBERS
 
@@ -7158,6 +7162,9 @@ IFN PANDASW,<	;[1]
 .TICTI==:31			;TYPEIN
 .TICTO==:32			;TYPEOUT
 .TITCE==:33			;TWO CHARACTER ESCAPE SEQUENCE
+ifn VTSSW,<
+.TICMR==:^D35			;3002 FLUSH TYPEOUT
+>
 
 
 RADIX 8
@@ -7375,6 +7382,8 @@ IFN VTSSW,<
 ;	.VTCNT==:1			; Repeat count
 	.VTXLM==:2			; First char,,Last char
 .VTESC==:24			; Output VTS escape
+.VTVBL==:25			; Visible bell
+.VTBOW==:26			; Black-on-white mode
 
 ; DPYOP JSYS (this should really be in the proper alphabetical place)
 
