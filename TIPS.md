@@ -14,6 +14,6 @@ In `SYSJB1.RUN` it is a good idea to first run a little program which sets maxim
 
 ## If your monitor build hangs
 
-Sometimes linking the monitor seems to hang after a LNKRLC message (showing the PSECT starts, values, and limits), typically after complaing about PSECT overlaps before.
+Sometimes linking the monitor seems to hang after a LNKRLC message (showing the PSECT starts, values, and limits), typically after complaing about PSECT overlaps before. Or the linking seems to work, but starting MON.EXE gives `Pushdown overflow` or similar.
 
-If you abort and restart the linking, the same thing will happen again. The way out is to edit LNKNEW.CCL to manually adjust PSEC starts to avoid the overlaps, before trying again. This is normally done by the monitor linking, but sometimes fails.
+If you abort and restart the linking, the same thing will happen again. The way out is to edit LNKNEW.CCL to manually adjust PSECT starts to avoid the overlaps, before trying again. See the overview before the `LNKPOV` notices. This is normally done by the monitor linking, but sometimes fails.
