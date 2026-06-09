@@ -216,9 +216,16 @@ ASNCV2:	CAIGE T3,NTTCVT-1	;1015 LOOKED AT ALL CVT'S?  (starts with 0!!!)
 	OKSKED			;YES,
 	RETBAD			;RETURN BAD
 
-ASNCV3:	LOAD T2,TCJOB,(T2)	;GET JOB FOR WHICH THIS IS A CNTRL TTY.
-	CAIE T2,-1		;IS THERE ONE
-	JRST ASNCV2		;YES. TTY ALREADY ATTACHED?
+	;; [9117] from TVTSRV/ASNTVT
+ASNCV3:	TRNN T2,-1		;[9117] Bogus pointer?
+	 JRST ASNCVB		;[9117] Yes
+	LOAD T2,TCJOB,(T2)	;GET JOB FOR WHICH THIS IS A CNTRL TTY.
+	;; from TVTSRV/ASNTVT
+	CAIN T2,-1		;IS THERE ONE
+	  JRST ASNCV4		; No, use this one
+	HLRZ T2,JOBPT(T2)	; Yes, is it really there?
+	CAMN T2,CVLIN		; Skip if TCJOB has obsolete data
+	  JRST ASNCV2		;YES. TTY ALREADY ATTACHED?
 ASNCV4:	MOVE T2,CVLIN		;GET LINE NUMBER BACK
 	CALL TTYASC		;ASSIGN CVT
 	 JRST ASNCV6		;COULD NOT ASSIGN IT
@@ -243,14 +250,27 @@ ifn VTSSW,<
 	STOR T3,NVTYP,(T2)
 ;99 End modification
 >
-
+ife TSBSW,<
 	SETZM NVTOPF(T2)	;CLEAR OPTION STATUS
-	OKSKED
+>
+ifn TSBSW,<
+	setzm nvtodp(t2)	;clear DO options in progress
+	setzm nvtowp(t2)	;clear WILL options in progress
+	setzm nvtodr(t2)	;clear DO options results
+	setzm nvtowr(t2)	;clear WILL options results
+	setzm nvsbln(t2)	;clear SB len
+	xmovei t1,nvsbbf(t2)
+	txo t1,.p08
+	movem t1,nvsbpt(t2)	;set up SB buffer pointer
+>
+;;	OKSKED			;[BV: move OKSKED down]
 	STOR Q1,PTCON,(T2)	;REMEMBER CONNECTION
 	SETONE TT%DUM,TTFLGS(T2) ;SET DUPLEX MODE
 	MOVEI T1,.TTidl		;21 Set to be NVT type terminal
 	STOR T1,TTTYP,(T2)
 	MOVE T1,CVLIN		;RETURN LINE NUMBER
+	OKSKED			;[BV: move OKSKED to here]
+;	bug.(inf,asncvz,tvtsrv,soft,<ASNCVT resetting options and buffer>,<<t2,dynpt>,<t1,cvlin>>)
 	RETSKP
 
 ASNCV5:	CALL ULKTTY		;UNLOCK DATA BASE
@@ -258,6 +278,19 @@ ASNCV6:	HRRZ T1,CVTPTR		;GET FIRST CVT
 	MOVE T3,CVLIN		;SET UP TO TRY NEXT LINE
 	SUB T3,T1		;GET CVT NUMBER IN 3
 	JRST ASNCV2		;AND TRY NEXT CVT
+
+;[9117] Here if bogus entry in TTACTL
+
+ASNCVB:	MOVE T2,CVLIN		;[9117] Load the line number
+	BUG.(CHK,ASNCVJ,TVTSRV,SOFT,<Invalid TTACTL entry>,<<T2,TTYLIN>>,<
+Cause:	Routine ASNCVT has discovered a bad entry in TTACTL.  The monitor will
+	ignore this CVT and keep looking for a free one.
+
+Data:	TTYLIN - TTY line number that was passed to ASNCVT
+>)
+	JRST ASNCV2		;[9117] Skip to next TTY
+
+	ENDSV.
 
 ;CVTDET - CLOSE A FULL DUPLEX NET TTY CONNECTION
 ;
@@ -359,8 +392,15 @@ CHANEG::MOVE T1,TODCLK		;GET NOW
 ;RETURN +1: ALWAYS
 
 
-CHATCS::MOVEI T3,(1B<RCTOPT+WILOPT>)
+CHATCS::
+ife TSBSW,<
+	MOVEI T3,(1B<RCTOPT+WILOPT>)
 	TDNE T3,NVTOPF(T2)
+>
+ifn TSBSW,<
+	MOVEI T3,(1B<RCTOPT>)	; RCTE-on bit
+	TDNE T3,NVTOWP(T2)	; Have we said we will do RCTE?
+>
 	CALL CKNNVT
 ifn VTSSW,<
 	 JRST CHATC8		;99 NO RCTE (SUPDUP)

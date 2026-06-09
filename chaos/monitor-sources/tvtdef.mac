@@ -37,8 +37,16 @@ NAMOPT==4			;NEGOTIATE MESSAGE SIZE
 STSOPT==5			;STATUS
 TMKOPT==6			;TIMING MARK OPTION
 RCTOPT==7			;RCTE OPTION
+ife TSBSW,<
 WILOPT==10			;OFFSET FOR REQUESTS
 MAXOPT==^D18			;ONLY 1 HALF WORD OF OPTION BITS
+>
+ifn TSBSW,<
+TTPOPT==^d24			;Terminal type option
+WSZOPT==^d31			;Window size option
+WILOPT==WSZOPT+1		;OFFSET FOR REQUESTS
+MAXOPT==^d36			;A full word of option bits
+>
 
 IFN VTSSW,<
 ; SUPDUP special chars
@@ -74,6 +82,15 @@ DEFSTR NVSTP,TTNETW,14,3	;CURRENT NVT STATE
 IFN VTSSW,<
 .DF300==6			;99 SUPDUP - 300 received
 .DFCLC==7			;99 SUPDUP - reading console location
+ifn TSBSW,<
+;.DFSB==10			;@@@@ only 3 bits in NVSTP!
+if1,<printx ?VTSSW==1 can not have TSBSW==1 - only 3 bits in NVSTP>
+>
+>
+ife VTSSW,<
+ifn TSBSW,<
+.DFSB==6			;Deferred SB (subnegotiation value being collected)
+>
 >
 NV%GAB==1B15			;BIT IN TTNETW -- SUPPRESS GO-AHEAD
 MSKSTR NVGAB,TTNETW,NV%GAB
@@ -89,9 +106,27 @@ DEFSTR PBRCT,TTBRKC,8,9 ;BITS 0-8: OUTSTANDING BREAK COUNT
 MAXBRC==777
 
 
+ife TSBSW,<
 NVTOPF=TTDDLN+1			;LH -- BIT FOR EACH OPTION IN PROGRESS
 				;RH -- BIT FOR RESULT OF EACH OPTION
+>
+ifn TSBSW,<
+;; The above single word actually has the following FOUR fields, which works
+;; since WILOPT (the max implemented option+1) is just 10. But when doing
+;; options like ^d31 (window size), we need four words.
+NVTODP=TTDDLN+1			;DO options being negotiated
+NVTOWP=NVTODP+1			;WILL options being negotiated
+NVTODR=NVTOWP+1			;DO options enabled (result)
+NVTOWR=NVTODR+1			;WILL options enabled (result)
+NVSBLN=NVTOWR+1			;SB buffer len
+NVSBPT=NVSBLN+1			;SB buffer ptr
+NVSBBF=NVSBPT+1			;SB buffer
+NVSBBX=5			;max len of buffer (5 words of 4 8-bit bytes)
+NVSBBB=<NVSBBX*4>		;bytes
+if2,<ifl TVTLEN-<NVSBBF+NVSBBX>,<printx ?TVTLEN does not match NVSBBF>> ;double-check
+>
 
 ;TVTLEN IS DEFINED IN TTYDEF
+; and remember to recompile TTYSRV when TVTLEN is changed.
 
 	END

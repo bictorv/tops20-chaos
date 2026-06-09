@@ -180,8 +180,13 @@ TCOBQ:	SAVELN			;Save line number
 ;	   T2/ dynamic data pointer
 ; Returns +1 Always.  May coroutine into TCOU6A to output extra byte
 
+ife TSBSW,<
 DOBIN==1B<BINOPT+^D18>		;Bit in NVTOPF saying in "DO BINARY" mode
 WILBIN==1B<BINOPT+WILOPT+^D18>	;Bit in NVTOPF saying in "WILL BINARY" mode
+>
+ifn TSBSW,<
+BINBIT==1b<BINOPT>
+>
 
 ;  This routine has two functions: (1) ensure proper Telnet NL's when not
 ; in binary mode and (2) ensure that a '377 character gets doubled to prevent
@@ -202,7 +207,12 @@ WILBIN==1B<BINOPT+WILOPT+^D18>	;Bit in NVTOPF saying in "WILL BINARY" mode
 ; user process strips NULs following CR's as per the protocol.
 
 TVFLTR::SAVEAC <T1,T2>
+ife TSBSW,<
 	IFQE. WILBIN,NVTOPF(T2)	;Only do this check if not in binary mode
+>
+ifn TSBSW,<
+	IFQE. BINBIT,NVTOWR(T2)	;Only do this check if not in binary mode
+>
 	ANDQE. NVCRP,(T2)	;Was last byte CR?
 	  CAIE T1,.CHCRT	;Is it a CR?
 	ANSKP.
@@ -304,8 +314,15 @@ ifn VTSSW,<
 	 JRST NVTXG1		;NO.  SKIP GA
 	MOVEI T1,GACH		;GET GA CHARACTER
 	CALL NVTSSP		;SEND IT
-NVTXG1:	MOVEI T3,(1B<RCTOPT+WILOPT>) ;RCTE OPTION REQUEST
+NVTXG1:
+ife TSBSW,<
+	MOVEI T3,(1B<RCTOPT+WILOPT>) ;RCTE OPTION REQUEST
 	TDNN T3,NVTOPF(T2)
+>
+ifn TSBSW,<
+	MOVEI T3,(1B<RCTOPT>)	;RCTE OPTION REQUEST
+	TDNN T3,NVTOWP(T2)	;WILL in progress?
+>
 	 RET			;NO
 	LOAD T1,PBRCT,(T2)	;GET BREAK COUNT
 	ADDI T1,1		;ADD ONE
@@ -603,20 +620,49 @@ NVTNGT:	MOVEI T3,[IFIW!NVTXWL	;GET ADDRESS OF WILL
 
 NVTNGF:	MOVEI T3,[IFIW!NVTXWN	;GET ADDRESS OF WON'T
 		IFIW!NVTXDN]	; AND DON'T ROUTINES
-NVTNGC:	CAIL T1,MAXOPT		;LEGAL OPTION
+NVTNGC:
+ife TSBSW,<
+	CAIL T1,MAXOPT		;LEGAL OPTION
 	 RET			;NO
 	STKVAR<NNGOPT,NNGADD,NNGDAD>
+>
+ifn TSBSW,<			;Now opt+WILOPT .gt. MAXOPT, so check that case too.
+	STKVAR<NNGOPT,NNGADD,NNGDAD,NNGWIL>
+	setzm nngwil		;Assume not WILOPT
+	caige t1,wilopt		;Is it?
+	ifskp.
+	 subi t1,wilopt		;get rid of WILOPT
+	 cail t1,maxopt		;Check if still legal
+	  ret
+	 setom nngwil		;it was WILOPT (note that the saved option will be without WILOPT)
+	endif.
+>
 	NOINT			;MAKE SURE WE ARE NOT INTERRUPTABLE
 	MOVEM T1,NNGOPT		;SAVE OPTION
 	MOVEM T2,NNGDAD		;AND ADDRESS OF DYNAMIC DATA
 	MOVEM T3,NNGADD		;AND ADDRESS OF ROUTINES
 	MOVE T3,BITS(T1)	;CONVERT OPTION TO FLAG BITS
+ife TSBSW,<
 	IORM T3,NVTOPF(T2)	;SET OPTION NEGOTIATION IN PROGRESS BIT
 	TRZN T1,WILOPT		;ARE WE ASKING FOR THIS OPTION
 	AOS NNGADD		;NO.  BUMP TO DO OR DON'T
+>
+ifn TSBSW,<
+	skipe nngwil		;ARE WE ASKING FOR THIS OPTION
+	ifskp.
+	 AOS NNGADD		;NO.  BUMP TO DO OR DON'T
+	 IORM T3,NVTODP(T2)	;SET OPTION NEGOTIATION IN PROGRESS BIT
+	else.
+	 IORM T3,NVTOWP(T2)	;SET OPTION NEGOTIATION IN PROGRESS BIT
+	endif.
+>
 	MOVE T3,NNGADD		;GET ADDRESS OF ROUTINE
 	CALL @0(T3)		;SAY "DO, WIL, DONT, WONT"
 	MOVE T1,NNGOPT		;GET OPTION BACK
+ifn TSBSW,<
+	skipe nngwil
+	 addi t1,wilopt		;Add back WILOPT for scheduler test
+>
 	ROT T1,-9		;INTO TOP 9 BITS
 	MOVE T2,NNGDAD		;GET DYNAMIC DATA ADDRESS
 	CALL TTYDIS		;SET UP FOR DISMISS
@@ -628,15 +674,30 @@ NVTNGC:	CAIL T1,MAXOPT		;LEGAL OPTION
 	MDISMS
 	MOVE T2,NNGDAD		;GET ADDRESS OF DYNAMIC DATA
 	CALL TTYAWK		;GO NOINT AGAIN
+	MOVE T2,NNGDAD		;(BV: TTYAWK zaps T2)
 	SETZRO NVTMO,TTNETW(T2) ;CANCEL ANY TIME-OUT IN PROGRESS
 	MOVE T1,NNGOPT		;GET OPTION AGAIN
+ife TSBSW,<
 	MOVS T3,BITS(T1)	;CONVERT TO FLAG
 	TDNN T3,NVTOPF(T2)	;IS IT OFF
 	 AOS 0(P)		;SKIP IF SUCCESSFUL
+>
+ifn TSBSW,<
+	MOVE T3,BITS(T1)	;CONVERT TO FLAG
+	skipe nngwil
+	ifskp.
+	 TDNN T3,NVTODP(T2)	;IS IT OFF
+	  AOS 0(P)		;SKIP IF SUCCESSFUL
+	else.
+	 TDNN T3,NVTOWP(T2)	;IS IT OFF
+	  AOS 0(P)		;SKIP IF SUCCESSFUL
+	endif.
+>
 	OKINT			;INTERRUPTS ARE NOW OK
 	RET
+ifn TSBSW,<
 	ENDSV.
-
+>
 
 ;NVTNTT - WAIT ROUTINE FOR NVT NEGOTIATIONS
 
@@ -644,14 +705,37 @@ NVTNGC:	CAIL T1,MAXOPT		;LEGAL OPTION
 ;	      BITS 27-35  TTY NUMBER
 
 NVTNTT:	LDB T3,[POINT 9,1,26]	;GET OPTION NUMBER
+ife TSBSW,<
 	MOVE T3,BITS(T3)
+>
 	ANDI T1,777		;LINE NUMBER
 	MOVE T2,T1		;GET LINE NUMBER IN T2
 	CALL STADYN		;GET ADDRESS OF DYNAMIC DATA
 	 JRST T1(T4)		;NOT ACTIVE. THIS SHOULD NOT HAPPEN
+ife TSBSW,<
 	SKIPE TTNETW(T2)	;SATISFIED IF DISCONNECTED
 	TDNN T3,NVTOPF(T2)
 	 JRST 1(T4)		;NEGOTIATION COMPLETE
+>
+ifn TSBSW,<
+	SKIPN TTNETW(T2)	;SATISFIED IF DISCONNECTED
+	 JRST 1(T4)
+;; Note: option possibly includes WILOPT, and no AC to spare to note if it does.
+;; Since opt+WILOPT .gt. 36, we can't simply use BITS, but need to branch 
+;; before doing that. That's why T3 now still has the option possibly including WILOPT.
+;; This unfortunately adds 2-3 instructions to the sched test, but that's ok.
+	CAIGE T3,wilopt
+	ifskp.
+	 subi t3,wilopt
+	 move t3,bits(t3)
+	 tdnn t3,nvtowr(t2)
+	  JRST 1(T4)		;NEGOTIATION COMPLETE
+	else.
+	 move t3,bits(t3)
+	 tdnn t3,nvtodr(t3)
+	  JRST 1(T4)		;NEGOTIATION COMPLETE
+	endif.
+>
 	JRST 0(T4)
 
 
@@ -665,10 +749,161 @@ NVTSTD::IFIW!NVTNRM		;NOTHING DEFERRED
 ifn VTSSW,<
 	IFIW!NVT300		;99 SUPDUP - deferred 300
 	IFIW!NVTCLC		;99 SUPDUP - reading console loc
+; can't have VTSSW and TSBSW at the same time
+;ifn TSBSW,<
+;	IFIW!NVTSB		;Deferred SuBnegotiation
+;>
 >
 ife VTSSW,<
-	IFIW!NVTNRM		;Not used
-	IFIW!NVTNRM		;Not used
+ifn TSBSW,<
+	IFIW!NVTSB		;Deferred SuBnegotiation
+>
+if2,<ifn .-nvtstd-.dfsb-1,<printx ?NVTSTD bad length>>
+>
+
+ifn TSBSW,<
+;; NVTSB - Collect subnegotiation value in the buffer, until IAC SE is read.
+;
+; Need to look for IAC SE and IAC IAC (which counts as one IAC), while
+; reading one byte at a time, so use LH(nvsbln) as a flag for "previous was IAC".
+; Make sure we stay in the .DFSB state until IAC SE has been read.
+; Go to NVTSE when it has been read, to handle the value.
+;
+;ACCEPTS:
+;	T1/ CHARACTER
+;	T2/ ADDRESS OF DYNAMIC DATA
+;RETURN +1: ALWAYS
+
+NVTSB:	movei t3,.dfsb
+	stor t3,nvstp,(t2)	;Stay in DFSB state until IAC SE
+	move t3,nvsbln(t2)	;How much have we read so far?
+	caie t1,iacch		;Is it an IAC?
+	ifskp.
+	 tlne t3,1		;Have we already read an IAC?
+	 ifskp.
+	  hrros nvsbln(t2)	;No, so remember we have now (but don't count it)
+	  ret			;and see what the following one is
+	 else.
+	  hrrzs nvsbln(t2)	;Yes, clear IAC state and handle this as a normal byte
+	 endif.
+	else.			;Not an IAC
+	 tlne t3,1		;Was the previous one an IAC?
+	 ifnsk.			;Yes...
+	  hrrzs nvsbln(t2)	;Clear IAC state now.
+	  cain t1,SECH		;Is this the end of the subnegotiation?
+	   jrst nvtse		;yes, go handle it!
+	 endif.
+	endif.
+	;; We now have the next byte of subnegotiation value
+	cail t3,NVSBBB		;max len (and space for this one)
+	ifnsk.
+	 bug.(inf,nvtsbz,tvtsrv,soft,<NVTSB buffer full>,<<t3,len>>)
+	 ret
+	endif.
+	idpb t1,nvsbpt(t2)	;Put it in the buffer
+	aos nvsbln(t2)		; and count it.
+	ret
+
+;; NVTSE - end of subnegotiation value, act on it
+; Make sure we go back to normal state after this, and
+; reset counter and buffer pointer after calling the handler.
+;ACCEPTS:
+;	T1/ CHARACTER (which would be SE, not interesting)
+;	T2/ ADDRESS OF DYNAMIC DATA
+;RETURN +1: ALWAYS
+
+NVTSE:	stkvar <nvsbp,dynpt>
+	movem t2,dynpt
+	setzro nvstp,(t2)	;Go back to normal state after this
+	skipg t1,nvsbln(t2)	;Check that anything was collected
+	ifnsk.
+	 bug.(inf,nvtsez,tvtsrv,soft,<NVSBLN not positive>,<<t1,sbln>>)
+	 jrst nvtsee
+	endif.
+	;; Have a look at the value
+	xmovei t3,nvsbbf(t2)
+	txo t3,.p08		;make 8-bit owgbp to start of buffer
+	movem t3,nvsbp
+	ildb t1,nvsbp		;Get the option byte
+	cail t1,wilopt		;Might we handle it?
+	ifnsk.
+	 ;; This means client doesn't follow protocol negotiations
+	 bug.(inf,nvtsey,tvtsrv,soft,<NVTSE option too big>,<<t1,opt>>)
+	 jrst nvtsee		;Just ignore it.
+	endif.
+	move t3,nvtodr(t2)	;Check if the option is enabled
+	ior t3,nvtowr(t2)	;(maybe figure out if only one of these should be checked?)
+	tdnn t3,bits(t1)
+	ifnsk.
+	 ;; This means client doesn't follow protocol negotiations
+	 bug.(inf,nvtsex,tvtsrv,soft,<NVTSE option not enabled>,<<t1,opt>,<t3,bits>>)
+	 jrst nvtsee		;Just ignore it.
+	endif.
+	move t3,nvsbp		;Set up arg (bp after option)
+	call @nvtseo(t1)	;Call the handler for the option
+nvtsee:	move t2,dynpt		;Who knows what the handler did with t2
+	setzm nvsbln(t2)	;Clear the buffer
+	xmovei t3,nvsbbf(t2)
+	txo t3,.p08
+	movem t3,nvsbpt(t2)	;Reset buffer pointer for NVTSB
+	ret			;Be done.
+
+	endsv.
+
+;; Subnegotiation option handlers
+NVTSEO:	
+repeat WSZOPT,<
+	IFIW!R			;No handler for these.
+>
+	IFIW!NVSWSZ		;Handle window size (NAWS, RFC 1073)
+repeat WILOPT-WSZOPT,<
+	IFIW!R			;No handler for these.
+>
+;; NVSWSZ - handle subneg about terminal window size
+; T1/ option (we know this already)
+; T2/ dynamic data
+; T3/ option value buffer pointer
+; Returns +1 always
+
+nvswsz:	stkvar <opbp,twid,tlen>
+	movem t3,opbp
+	move t1,nvsbln(t2)	;Check the buffer length, so we have the right data
+	caie t1,5		;option + 4 bytes of size
+	ifnsk.
+	 bug.(inf,nvwsz,tvtsrv,soft,<NAWS option length bad>,<<t1,tlen>>)
+	 ret
+	endif.
+	;; Option buffer is WIDMSB, WIDLSB, LENMSB, LENLSB
+	ildb t1,opbp
+	lsh t1,^d8
+	ildb t3,opbp
+	ior t3,t1
+	movem t3,twid
+	ildb t1,opbp
+	lsh t1,^d8
+	ildb t3,opbp
+	ior t3,t1
+	movem t3,tlen
+	move t1,twid
+	;; bug.(inf,nvwsz1,tvtsrv,soft,<NAWS window size>,<<t1,twid>,<t3,tlen>>)
+	load t1,tintl,(t2)	;Get internal line number
+	movei t1,.ttdes(t1)	;make device designator
+	movei t2,.mosll		;set line length
+	move t3,tlen
+	mtopr%
+	ifjer.
+	 bug.(chk,nvwsl,tvtsrv,soft,<NAWS failed to set line length>)
+	 ret
+	endif.
+	movei t2,.moslw		;set line width
+	move t3,twid
+	mtopr%
+	ifjer. 
+	 bug.(chk,bvwsw,tvtsrv,soft,<NAWS failed to set line width>)
+	endif.
+	ret			;Done
+
+	endsv.
 >
 
 ;NVTNRM - NORMAL NVT CHARACTER PROCESSING
@@ -691,8 +926,15 @@ ifn VTSSW,<
 >
 	CAIL T1,200		;POSSIBLE NVT CONTROL CHARACTER?
 	 JRST NVTCTL		;PROCESS POSSIBLE NVT CONTROL CHARACTER
-NVTDCH:	MOVE T3,NVTOPF(T2)
+NVTDCH:
+ife TSBSW,<
+	MOVE T3,NVTOPF(T2)
 	TXNE T3,<1B<BINOPT+^D18>>
+>
+ifn TSBSW,<
+	MOVE T3,NVTODR(T2)
+	TXNE T3,BINBIT		;Binary enabled?
+>
 	 JRST NVTUPB		; Binary, skip special checks
 	JE NVCRI,TTNETW(T2),[	;WAS LAST CH CR?
 		CAIE T1,.CHCRT	;NO. IS THIS ONE?
@@ -794,7 +1036,12 @@ NVTDTB:	RET			;(360) END OF SUBNEGOTIATION
 	MOVEI T1,177		;(367) EC -- CONVERT TO DEL
 	MOVEI T1,"U"-100	;(370) EL -- CONVERT TO ^U
 	RET			;(371) GA -- IGNORE
+ife TSBSW,<
 	RET			;(372) SB -- SHOULDN'T GET THIS
+>
+ifn TSBSW,<
+	TROA T3,.DFSB		;(372) SB -- start collecting value
+>
 	TROA T3,.DFWIL		;(373) DEFER WILL
 	TROA T3,.DFWNT		;(374) DEFER WONT
 	TROA T3,.DFDO		;(375) DEFER DO
@@ -1001,17 +1248,36 @@ NVTSDN:	MOVEI T1,DNTCH		;ENTER HERE WHEN OPTION ALREADY PUSHED
 
 NVTDO:	CAIL T1,WILOPT		;ARE WE WILLING?
 	 JRST NVTDO1		;NO
+ife TSBSW,<
 	MOVE T3,BITS+WILOPT(T1)	;YES GET FLAG BITS
 	TDNE T3,NVTOPF(T2)	;OUTSTANDING REQUEST
 	 JRST NVTWI2		;YES GO PROCESS IT
+>
+ifn TSBSW,<
+	MOVE T3,BITS(T1)	;YES GET FLAG BITS
+	TDNE T3,NVTOWP(T2)	;OUTSTANDING WILL REQUEST?
+	 JRST NVTWI2		;YES GO PROCESS IT
+>
 NVTDO1:	PUSH P,T1		;REMEMBER THE OPTION
-	MOVSS T3			;PUT BIT IN "OPTIONS ON" HALF
+	move t3,bits(t1)	;BV: in case we come from NVTDO+1
+ife TSBSW,<
+	MOVSS T3		;PUT BIT IN "OPTIONS ON" HALF
 	TDNE T3,NVTOPF(T2)	;IS THE OPTION ON?
 	 JRST NVTSNR		;YES, SEND NO REPLY
+>
+ifn TSBSW,<
+	TDNE T3,NVTODR(T2)	;IS THE OPTION ON?
+	 JRST NVTSNR		;YES, SEND NO REPLY
+>
 	CAIGE T1,NVTLOP		;DO WE KNOW ABOUT THIS OPTION
 	 CALL @NVTDOD(T1)	;YES. ATTEMPT EXECUTION
 	  JRST NVTRFU		;CAN'T DO IT -- REFUSE
+ife TSBSW,<
 	IORM T3,NVTOPF(T2)	;SET OPTION ON
+>
+ifn TSBSW,<
+	IORM T3,NVTODR(T2)	;SET OPTION ON
+>
 	JRST NVTSWL		;AND SEND "WILL"
 
 NVTDOD:	IFIW!RSKP		;BINARY XMIT -- OK WITH US
@@ -1023,6 +1289,12 @@ NVTDOD:	IFIW!RSKP		;BINARY XMIT -- OK WITH US
 	IFIW!NVTDTM		;TIMING MARK -- TRY TO DO IT
 ;	IFIW!NVTDRC		;REMOTE CONTROLLED TRANS & ECHO
 	IFIW!R			;DO NOT DO IT FOR NOW
+ifn TSBSW,<
+repeat WSZOPT-RCTOPT-1,<
+	IFIW!R
+>
+	IFIW!RSKP		;NAWS - ok with us
+>
 NVTLOP=.-NVTDOD
 
 ;ACTION ROUTINES FOR "DO"
@@ -1052,16 +1324,34 @@ NVTDTM:	RETSKP
 
 NVTDNT:	CAIL T1,WILOPT		;ARE WE WILLING FOR THIS OPTION
 	 JRST NVTDN1		;NO
+ife TSBSW,<
 	MOVE T3,BITS+WILOPT(T1)	;GET FLAG BITS
 	TDNE T3,NVTOPF(T2)	;OUTSTANDING REQUEST
 	 JRST NVTWN2		;YES
+>
+ifn TSBSW,<
+	MOVE T3,BITS(T1)	;YES GET FLAG BITS
+	TDNE T3,NVTOWP(T2)	;OUTSTANDING WILL REQUEST?
+	 JRST NVTWN2		;YES
+>
 NVTDN1:	PUSH P,T1		;SAVE OPTION
+	move t3,bits(t1)	;BV: in case we come from NVTDO+1
+ife TSBSW,<
 	MOVSS T3		;PUT BIT IN "OPTION ON" HALF
 	TDNN T3,NVTOPF(T2)	;OPTION ALREADY OFF?
+>
+ifn TSBSW,<
+	TDNN T3,NVTODR(T2)	;OPTION ALREADY OFF?
+>
 	 JRST NVTSNR		;YES. SEND NO REPLY
 	CAIGE T1,NVTLOP		;DO WE KNOW ABOUT THIS OPTION?
 	 CALL @NVTDND(T1)	;YES. PERFORM ACTION
+ife TSBSW,<
 	ANDCAM T3,NVTOPF(T2)	;CLEAR THE OPTION
+>
+ifn TSBSW,<
+	ANDCAM T3,NVTODR(T2)	;CLEAR THE OPTION
+>
 	JRST NVTSWN		;AND SEND "WON'T"
 
 NVTDND:	IFIW!R			;DILEMMA -- HE WANTS OFF, BUT WE CAN'T
@@ -1072,6 +1362,13 @@ NVTDND:	IFIW!R			;DILEMMA -- HE WANTS OFF, BUT WE CAN'T
 	IFIW!R			;STATUS OPTION
 	IFIW!R			;TIMING MARK -- HUH?
 	IFIW!R			;TURN OFF RCTE
+ifn TSBSW,<
+repeat WSZOPT-RCTOPT-1,<
+	IFIW!R
+>
+	IFIW!R			;NAWS
+>
+ifn .-NVTDND-NVTLOP,<printx ?NVTDND length mismatch>
 
 ;"DONT" ACTION ROUTINES
 ;TURN ECHOS OFF
@@ -1097,24 +1394,47 @@ NVTWIL - ;PROCESS "WILL"
 NVTWIL:	CAIL T1,WILOPT		;ONLY WILOPT OPTIONS
 	 JRST NVTWI1		;OTHERS CANNOT BE OUTSTANDING
 	MOVE T3,BITS(T1)	;GET THE BIT FOR THE OPTION
+ife TSBSW,<
 	TDNN T3,NVTOPF(T2)	;IS THIS OPTION OUTSTANDING?
+>
+ifn TSBSW,<
+	TDNN T3,NVTODP(T2)	;IS THIS OPTION OUTSTANDING?
+>
 	 JRST NVTWI1		;NO.
-NVTWI2:	MOVS T1,T3		;PUT BITS IN OPTION ON HALF
+NVTWI2:
+ife TSBSW,<
+	MOVS T1,T3		;PUT BITS IN OPTION ON HALF
 	IORM T1,NVTOPF(T2)	;SET WILL BIT
 	ANDCAM T3,NVTOPF(T2)	;AND CLEAR OUTSTANDING BIT
+>
+ifn TSBSW,<
+	IORM T3,NVTOWR(T2)	;SET WILL BIT
+	ANDCAM T3,NVTOWP(T2)	;AND CLEAR OUTSTANDING BIT
+>
 	RET
 
 NVTWI1:	PUSH P,T1		;SAVE THE OPTION
+ife TSBSW,<
 	MOVSS T3		;PUT BIT IN "OPTONS ON" HALF
 	TDNE T3,NVTOPF(T2)	;IS OPTION ALREADY ON?
+>
+ifn TSBSW,<
+	TDNE T3,NVTODR(T2)	;IS OPTION ALREADY ON?
+>
 	 JRST NVTSNR		;YES. SEND NO REPLY
 	CAIGE T1,NVTLOP		;LEGAL OPTION?
 	 CALL @NVTWID(T1)	;YES.  CALL ACTION ROUTINE
 	  JRST NVTSDN		;UNIMPLEMENTED OPTION OR CAN'T COMPLY
+ife TSBSW,<
 	IORM T3,NVTOPF(T2)	;DONE. SET OPTION "ON"
+>
+ifn TSBSW,<
+	IORM T3,NVTODR(T2)	;DONE. SET OPTION "ON"
+>
 	JRST NVTSDO		;AND SEND "DO"
 
-NVTWID:	IFIW!RSKP		;WILL BINARY -- DO
+NVTWID:
+	IFIW!RSKP		;WILL BINARY -- DO
 	IFIW!R			;WILL ECHO -- DONT
 	IFIW!R			;RECONNECT -- DONT
 	IFIW!RSKP		;SUPPRESS GA -- DO, DO, DO , DO!
@@ -1122,6 +1442,13 @@ NVTWID:	IFIW!RSKP		;WILL BINARY -- DO
 	IFIW!R			;STATUS -- DONT
 	IFIW!R			;TIMING MARK -- HUH?
 	IFIW!R			;WHAT'S HE TRYING TO DO?
+ifn TSBSW,<
+repeat WSZOPT-RCTOPT-1,<
+	IFIW!R
+>
+	IFIW!RSKP		;NAWS - please do!
+>
+ifn .-NVTWID-NVTLOP,<printx ?NVTWID length mismatch>
 
 ;NVTWNT - PROCESS "WONT"
 
@@ -1135,17 +1462,37 @@ NVTWID:	IFIW!RSKP		;WILL BINARY -- DO
 NVTWNT:	CAIL T1,MAXOPT		;LEGAL OPTION
 	 JRST NVTWN1		;NO.  OPTION NOT HANDLED
 	MOVE T3,BITS(T1)	;GET BIT FOR OPTION
+ife TSBSW,<
 	TDNN T3,NVTOPF(T2)	;IS THIS OPTION OUTSTANDING
+>
+ifn TSBSW,<
+	TDNN T3,NVTODP(T2)	;IS THIS OPTION OUTSTANDING
+>
 	 JRST NVTWN1		;NO. REQUEST
-NVTWN2:	HLR T3,T3		;YES. NEG ACKNOWLEDGE
+NVTWN2:
+ife TSBSW,<
+	HLR T3,T3		;YES. NEG ACKNOWLEDGE
 	ANDCAM T3,NVTOPF(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+>
+ifn TSBSW,<
+	ANDCAM T3,NVTODP(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+	ANDCAM T3,NVTOWP(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+	ANDCAM T3,NVTODR(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+>
 	RET
 
 NVTWN1:	PUSH P,T1		;SAVE OPTION
+ife TSBSW,<
 	MOVSS T3		;PUT BIT IN "OPTIONS ON" HALF
 	TDNN T3,NVTOPF(T2)	;OPTION ALREADY OFF?
 	 JRST NVTSNR		;YES. SEND NO RPLY
 	ANDCAM T3,NVTOPF(T2)	;STRANGELY ENOUGH, THE USER END
+>
+ifn TSBSW,<
+	TDNN T3,NVTODR(T2)	;OPTION ALREADY OFF?
+	 JRST NVTSNR		;YES. SEND NO RPLY
+	ANDCAM T3,NVTODR(T2)	;STRANGELY ENOUGH, THE USER END
+>
 	JRST NVTSDN		;NEVER HAS ANY OPTIONS TO TURN OFF
 
 
@@ -1309,7 +1656,19 @@ IFN VTSSW,<
 	 movx t3,.tysup		 ; Supdup
 	stor t3,nvtyp,(t2)	 ;Save line type
 >
+ife TSBSW,<
 	SETZM NVTOPF(T2)	;CLEAR OPTION STATUS
+>
+ifn TSBSW,<
+	setzm nvtodp(t2)	;clear DO options in progress
+	setzm nvtowp(t2)	;clear WILL options in progress
+	setzm nvtodr(t2)	;clear DO options results
+	setzm nvtowr(t2)	;clear WILL options results
+	setzm nvsbln(t2)	;clear SB len
+	xmovei t1,nvsbbf(t2)
+	txo t1,.p08
+	movem t1,nvsbpt(t2)	;set up SB buffer pointer
+>
 	HRRZ T1,FLGTCB		; Get the TCB
 	STOR T1,PTVT,(T2)	;REMEMBER UNIT
 	SETONE TT%DUM,TTFLGS(T2) ;SET DUPLEX MODE
@@ -1349,10 +1708,19 @@ IFN PANDASW,<	;[2]
 ;	TDCALL off TTRLOT
 ;Returns +1 Always, TTLOTS(T2) updated
 
-TVRLOT::LOAD T1,DOBIN,NVTOPF(T2)  ;Get DO BINARY state
+TVRLOT::
+ife TSBSW,<
+	LOAD T1,DOBIN,NVTOPF(T2)  ;Get DO BINARY state
 	STOR T1,MO%NBI,TTLOTS(T2) ; This is BINARY INPUT status
 	LOAD T1,WILBIN,NVTOPF(T2) ;Get WILL BINARY state
 	STOR T1,MO%NBO,TTLOTS(T2) ; This is BINARY OUTPUT status
+>
+ifn TSBSW,<
+	LOAD T1,BINBIT,NVTODR(T2)  ;Get DO BINARY state
+	STOR T1,MO%NBI,TTLOTS(T2) ; This is BINARY INPUT status
+	LOAD T1,BINBIT,NVTOWR(T2) ;Get WILL BINARY state
+	STOR T1,MO%NBO,TTLOTS(T2) ; This is BINARY OUTPUT status
+>
 	RET
 
 ;TVSLOT - Set TVT binary state
@@ -1369,7 +1737,12 @@ TVSLOT::STKVAR <TVTLTS>		;This may look like a copy of TTLOTS(T2) but
 	MOVEM T1,TVTLTS		; this way may avoid timing races
 	MOVX T1,BINOPT		;RECEIVE BINARY option
 	MOVE T3,[IFIW!R]	;Assume do nothing
+ife TSBSW,<
 	IFQN. DOBIN,NVTOPF(T2)	;Host sending binary?
+>
+ifn TSBSW,<
+	IFQN. BINBIT,NVTODR(T2)	;Host sending binary?
+>
 	  TMNN MO%NBI,TVTLTS	;Yes, user wants binary off?
 	   MOVE T3,[IFIW!NVTNGF] ;Yes - send DONT BINARY
 	ELSE.
@@ -1380,7 +1753,12 @@ TVSLOT::STKVAR <TVTLTS>		;This may look like a copy of TTLOTS(T2) but
 	 NOP
 	MOVX T1,BINOPT+WILOPT	;Transmit BINARY option
 	MOVE T3,[IFIW!R]	;Assume do nothing
+ife TSBSW,<
 	IFQN. WILBIN,NVTOPF(T2)	;We sending binary?
+>
+ifn TSBSW,<
+	IFQN. BINBIT,NVTOWR(T2)	;We sending binary?
+>
 	  TMNN MO%NBO,TVTLTS	;Yes, user wants binary off?
 	   MOVE T3,[IFIW!NVTNGF] ;Yes - send WONT BINARY
 	ELSE.
@@ -1519,12 +1897,26 @@ TVTNCL:	MOVEM T2,TVTCTR		;SAVE TVT COUNTER
 	SKIPGE TTNETW(T2)	;ATTACHED?
 	 JRST TVTNCE		;NO, SKIP IT
 	MOVX T3,NVTMO		;TIME OUT
+ife TSBSW,<
 	HLLZ T1,NVTOPF(T2)	;GET OUTSTANDING OPTIONS
+>
+ifn TSBSW,<
+	move t1,nvtodp(t2)	;Outstanding DO
+	ior t1,nvtowp(t2)	;add in outstanding WILL
+>
 	 JUMPE T1,[ANDCAM T3,TTNETW(T2) ;NONE, CANCEL TIME-OUT IF ANY
 		JRST TVTNCE]
 	XORB T3,TTNETW(T2)	;YES, COUNT COUNTER
 	TXNN T3,NVTMO		;COUNT FROM 1 TO 0?
+ife TSBSW,<
 	 HRRZS NVTOPF(T2)	;YES, CANCEL OUTSTANDING OPTION
+>
+ifn TSBSW,<
+	ifnsk.
+	 setzm nvtodp(T2)	;YES, CANCEL OUTSTANDING OPTION
+	 setzm nvtowp(T2)	;YES, CANCEL OUTSTANDING OPTION
+	endif.
+>
 TVTNCE:	CALL ULKTTY		;UNLOCK DATA BASE
 	MOVE T2,TVTCTR		;GET AOBJ COUNTER
 	AOBJN T2,TVTNCL		;ANY MORE TVT'S
@@ -1557,8 +1949,14 @@ IFN PANDASW*0,<	;[3]
 	ADJBP PKTPTR,[POINT 8,PKTELI(PKT)] ; Byte pointer there
 >;IFN PANDASW
 	MOVEI CNT,0		; Init number moved to packet
+ife TSBSW,<
 	MOVEI T3,(1B<RCTOPT+WILOPT>) ; RCTE-on bit
 	TDNE T3,NVTOPF(T2)	; Have we said we will do RCTE?
+>
+ifn TSBSW,<
+	MOVEI T3,(1b<RCTOPT>)	; RCTE-on bit
+	TDNE T3,NVTOWP(T2)	; Have we said we will do RCTE?
+>
 	CALL CKNNVT		; And is this a "new" TELNET terminal?
 ifn VTSSW,<
 	 JRST SNDTV1		;99 No RCTE for Supdup
