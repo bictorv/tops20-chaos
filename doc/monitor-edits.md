@@ -96,3 +96,5 @@ Chaosnet NVT support. Extend TDCALL macro with CN (Chaosnet) case. Chaos NVT ini
 ## TVTSRV.MAC
 
 Print SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT on Chaosnet NVTs (like SYSTEM:INTERNET-LOGIN-MESSAGE.TXT is printed on TCP NVTs).
+
+Support Telnet subnegotiations for window size and terminal type (ANSI, DEC-VT100, VT100, XTERM, XTERM-256COLOR are recognized and all map to the VT100 terminal type). **Note** that this required changes to TVTLEN/CVTLEN, which are defined in TVTSRV but used in TTYDEF and TTYSRV, which thus need recompiling.

@@ -270,7 +270,6 @@ ifn TSBSW,<
 	STOR T1,TTTYP,(T2)
 	MOVE T1,CVLIN		;RETURN LINE NUMBER
 	OKSKED			;[BV: move OKSKED to here]
-;	bug.(inf,asncvz,tvtsrv,soft,<ASNCVT resetting options and buffer>,<<t2,dynpt>,<t1,cvlin>>)
 	RETSKP
 
 ASNCV5:	CALL ULKTTY		;UNLOCK DATA BASE

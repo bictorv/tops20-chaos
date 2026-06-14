@@ -74,6 +74,7 @@
  	SEARCH ANAUNV,TTYDEF,PROLOG
 ifn chaos,<
  	SEARCH TVTDEF
+	extn <chkcvt>
 >
 	TTITLE	(TVTSRV,TVTSRV,< - Internet TVT Dependent routine>)
 
@@ -781,10 +782,10 @@ NVTSB:	movei t3,.dfsb
 	ifskp.
 	 tlne t3,1		;Have we already read an IAC?
 	 ifskp.
-	  hrros nvsbln(t2)	;No, so remember we have now (but don't count it)
+	  hrros t3,nvsbln(t2)	;No, so remember we have now (but don't count it)
 	  ret			;and see what the following one is
 	 else.
-	  hrrzs nvsbln(t2)	;Yes, clear IAC state and handle this as a normal byte
+	  hrrzs t3,nvsbln(t2)	;Yes, clear IAC state and handle this as a normal byte
 	 endif.
 	else.			;Not an IAC
 	 tlne t3,1		;Was the previous one an IAC?
@@ -792,6 +793,8 @@ NVTSB:	movei t3,.dfsb
 	  hrrzs nvsbln(t2)	;Clear IAC state now.
 	  cain t1,SECH		;Is this the end of the subnegotiation?
 	   jrst nvtse		;yes, go handle it!
+;	 else.
+;	  trn			; This was a byte not after an IAC, go ahead
 	 endif.
 	endif.
 	;; We now have the next byte of subnegotiation value
@@ -852,13 +855,90 @@ nvtsee:	move t2,dynpt		;Who knows what the handler did with t2
 
 ;; Subnegotiation option handlers
 NVTSEO:	
-repeat WSZOPT,<
+repeat TTPOPT,<
 	IFIW!R			;No handler for these.
+>
+	IFIW!NVSTTY		;Handle terminal type (RFC 1091)
+repeat WSZOPT-TTPOPT-1,<
+	IFIW!R			;No handler for these
 >
 	IFIW!NVSWSZ		;Handle window size (NAWS, RFC 1073)
 repeat WILOPT-WSZOPT,<
 	IFIW!R			;No handler for these.
 >
+
+;; NVSTTY - handle subneg about terminal type
+; T1/ option
+; T2/ dynamic data
+; T3/ option value buffer pointer
+; Returns +1 always.
+; If the terminal type received is recognized, changes the terminal type
+; but not the width and length.
+; If the terminal type isn't recognized, does nothing
+; @@@@ but maybe do SB TTYTYPE SEND again? Once only.
+
+nvstty:	stkvar <opbp,dynpt,ttpbp,<ttpbuf,<nvsbbb+1>/5>>
+	movem t2,dynpt
+	movem t3,opbp
+	move t1,nvsbln(t2)
+	;; Check option value length
+	caige t1,2		;Must have at least IS and a byte of ttype
+	ifnsk.
+	 bug.(inf,nvttp,tvtsrv,soft,<TTYTYPE option length bad>,<<t1,blen>>)
+	 ret
+	endif.
+	;; Check the option code
+	ildb t1,opbp
+	caie t1,0		;TTYTYPE IS = 0
+	ifnsk.
+	 bug.(inf,nvttpc,tvtsrv,soft,<TTYTYPE bad code, expected IS>,<<t1,code>>)
+	 ret
+	endif.
+	;; Copy the non-nul-terminated 8-bit buffer to a 7-bit buffer
+	xmovei t1,ttpbuf
+	txo t1,.p07
+	movem t1,ttpbp		;here's the buffer pointer
+	move t2,nvsbln(t2)
+	subi t2,1		;minus code
+	do.
+	 ildb t1,opbp
+	 ;; @@@@ could check that it's a 7-bit value, but doesn't really matter.
+	 ;; @@@@ and that it is a printable ascii value
+	 idpb t1,ttpbp
+	 ;; Note: the option buffer holds fewer bytes than the output buffer
+	 sojg t2,top.		
+	enddo.
+	skipe t1		;Did we just write a nul? Probably not.
+	ifnsk.
+	 setz t1,		;Make it nul-terminated
+	 idpb t1,ttpbp
+	endif.
+	;; Now look up the terminal type given
+	movei t1,nvtttb
+	hrroi t2,ttpbuf
+	tbluk%
+	ifnje.
+	 txne t2,tl%exm		;Found an exact match?
+	annsk.
+	 hrrz t1,(t1)		;Get the terminal type
+	 move t2,dynpt
+	 stor t1,tttyp,(t2)	;Store it
+	 ret			;Be done
+	endif.
+	;; No exact match found. See if it is some "xterm-*" variant?
+	;; @@@@ well not yet
+	;;bug.(inf,nvtt2,tvtsrv,soft,<TTYTYPE not found, ignoring>,<<t2,flags>>)
+	ret
+
+;; Terminal type table
+nvtttb:	xwd nvttbz,nvttbz	;length, max length
+	xwd [asciz /ANSI/],.tt100	;RFC1700 standard
+	xwd [asciz /DEC-VT100/],.tt100	;RFC1700 standard
+	xwd [asciz /VT100/],.tt100	;what everyone says
+	xwd [asciz /XTERM/],.tt100	;RFC1700 standard
+	xwd [asciz /XTERM-256COLOR/],.tt100	;what I happen to use
+nvttbz==.-nvtttb
+
 ;; NVSWSZ - handle subneg about terminal window size
 ; T1/ option (we know this already)
 ; T2/ dynamic data
@@ -1410,6 +1490,8 @@ ife TSBSW,<
 ifn TSBSW,<
 	IORM T3,NVTOWR(T2)	;SET WILL BIT
 	ANDCAM T3,NVTOWP(T2)	;AND CLEAR OUTSTANDING BIT
+	cain t1,ttpopt		;Was it TTYTYPE?
+	 call ttpsb		;Then send a subnegotiation asking for the type
 >
 	RET
 
@@ -1449,6 +1531,54 @@ repeat WSZOPT-RCTOPT-1,<
 	IFIW!RSKP		;NAWS - please do!
 >
 ifn .-NVTWID-NVTLOP,<printx ?NVTWID length mismatch>
+
+ifn TSBSW,<
+;; DOTTP - negotiate about TTYTYPE, and if client is willing, ask for it
+;
+; Return +1 always
+
+dottp:	saveac <t1,t2,t3>
+	move t2,ctrltt		;Get controlling tty
+	call chktvt		;Is it a TVT?
+	ifnsk.
+ifn CHAOS,<
+	 call chkcvt		;No, is it a Chaos TVT?
+	annsk.
+>
+	 ret			;None, so skip this
+	endif.
+	call lcktty		;Get dynamic data
+	 jrst dottpz		;Not active, unlock and return
+	movei t1,ttpopt		;Negotiate about TTYTYPE
+	move t3,bits(t1)
+	iorm t3,nvtodp(t2)	;Note that DO in progress
+	call nvtxdo		;Tell client to DO it
+dottpz:	call ulktty		;Unlock database again - go OKSKED(?)
+	ret
+
+;; TTPSB - respond to a WILL TTYTYPE with IAC SB TTYTYPE SEND IAC SE
+; T1/ option
+; T2/ dynamic data
+; return +1 always
+
+; cf NVTRRR
+ttpsb:	movei t1,6		;IAC SB TTYTYPE SEND IAC SE
+	call nvtrsv		;Reserve space
+	ifnsk.
+	 bug.(inf,ttpdoz,tvtsrv,soft,<No space for TTYTYPE subneg>)
+	 ret			;No space
+	endif.
+	movei t1,sbch		;SB
+	call nvtssp		;IAC SB
+	movei t1,ttpopt		;TTYTYPE
+	call tcobq
+	movei t1,1		;SEND
+	call tcobq
+	movei t1,sech		;SE
+	call nvtssp		;IAC SE
+	oksked			;Try this (cf NVTRRR)
+	ret
+>
 
 ;NVTWNT - PROCESS "WONT"
 
@@ -2594,6 +2724,11 @@ TVTMSG::			; Routine to type out a greeting message
 	STKVAR <TVMSGJ,<TVMSGB,TVMSGZ>>
 	MOVX T1,<GJ%SHT!GJ%OLD>	; The file must allready exist
 	HRROI T2,[ASCIZ/SYSTEM:INTERNET-LOGIN-MESSAGE.TXT/]
+>
+ifn TSBSW,<
+	;; This looks like a random place to do this, but why not?
+	;; Things are stable enough at this point.
+	call dottp		;Try to get TTYTYPE from the client
 >
 	GTJFN%			; Get the JFN
 	 ERJMP R	       	; assume file does not exist
