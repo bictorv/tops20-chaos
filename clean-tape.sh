@@ -3,7 +3,7 @@
 # By the way, the read20 to read "raw" tape (.tpr,.tpk) is https://github.com/hansliss/read20 which
 # is different from e.g. https://github.com/brouhaha/tapeutils which is good for reading .tps tapes.
 # Ho hum.
-# And use "tapeutils -x -b -f foo.tps"
+# And use "read20 -x -b -f foo.tps"
 
 # Output files
 for x in rel exe bin unv log tmp; do

@@ -19,7 +19,7 @@ For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP enca
 
 Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it. For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
 
-Then restore the tape file `chaos.tps` using `DUMPER`.
+Then restore the tape file `chaos.tps` using `DUMPER`. (To read the tape under *nix, you can use `read20 -x -b -f chaos.tps` with read20 from [this version](https://github.com/brouhaha/tapeutils) of tapeutils.)
 
 To generate the monitor, connect to `<CHAOS.MONITOR-SOURCES>` and submit `MONGEN.CTL`. Install `MONITR.EXE` in `SYSTEM:`, and `CHAFDS.UNV` and `MONSYM.UNV`in `SYS:` (e.g. `<CHAOS.SUBSYS>`, see [below](#client-programs)).
 
@@ -92,8 +92,6 @@ See [further documentation on source code edits here](doc/monitor-edits.md).
 
 Surprisingly, the `TELNET` and `MMAILR` programs of the Panda distribution already handled Chaosnet! Both have been fixed to change the priority order between TCP/Internet and Chaosnet, to prefer Chaosnet. A new `SMTCHA` program which implements an SMTP server for Chaosnet has been added (see below).
 
-The `TELSER.FAI` program needed a fix to set AN%NTP in the ATNVT% call, to mark the connection as "new Telnet".
-
 Sending and receiving "SEND" messages and mail works, if you install the modified MM mailsystem (see below) and the server for the `SEND` contact (see below). 
 
 ### Server programs
@@ -101,6 +99,8 @@ Sending and receiving "SEND" messages and mail works, if you install the modifie
 If you install `CHARFC.EXE` in `SYSTEM:`, and start it in a SYSJOB, it will get all unclaimed RFC packets, and search for server programs `SYSTEM:CHAOS`.*contact* and start them.  See [the Chaosnet report](https://chaosnet.net/amber.html#Server-Programs-1) for documentation of `CHARFC`. 
 
 There are simple server programs for the `TIME`, `UPTIME`, `NAME`, `LIMERICK`, `FILE`, `LOAD`, `TELNET`, and `SEND` contacts, see [`<CHAOS.SYSTEM>-READ-THIS-.TXT`](chaos/system/-read-this-.txt).
+
+The `TELNET` server program, `TELSER.FAI`, needed a fix to set AN%NTP in the ATNVT% call, to mark the connection as "new Telnet".
 
 ### Client programs
 

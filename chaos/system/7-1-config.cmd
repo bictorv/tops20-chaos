@@ -12,7 +12,7 @@ DEFINE DOMAIN: PS:<DOMAIN>
 DEFINE EDITOR: SYS:EMACS
 !DEFINE EMACS: ps:<chaos.vts.emacs>,ps:<chaos.emacs>,PS:<EMACS>
 DEFINE EMACS: PS:<EMACS>
-DEFINE FINGER: PS:<FINGER>
+DEFINE FINGER: ps:<chaos.finger>,PS:<FINGER>
 DEFINE FUN: PS:<GAMES>	
 DEFINE HLP: PS:<HELP>
 define info: ps:<info>
