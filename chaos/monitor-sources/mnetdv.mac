@@ -393,6 +393,15 @@ Action:	Insure that the appropriate file is in SYSTEM: and is valid.
 	SKIPE T1		;[9177] Skip if not turning on nets today
 	 SKIPN DEFADR		; Did addresses initialize properly?
 	  JRST MNTINX		; No, return now
+ifn TSBSW,<
+	movx t1,cr%cap
+	setz t2,
+	cfork
+	 erjmp .+1
+	move t2,[xwd msec1,nsefrk##]
+	msfrk%
+	 erjmp .+1
+>
 	JRST MNTON1		; Go turn on networks
 
 ;LKSTOR - Lock down a region of core

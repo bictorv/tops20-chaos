@@ -4173,6 +4173,11 @@ NDG ATJBMX,0			;NO HTN'S IF NO ATS
 >
 RS ATSTYM,1			;ATS TIMER (NEEDED BY DUMMY ATSINI ALSO)
 
+ifn TSBSW,<
+NDG(SBCEMX,10)			;Max nr of entries
+NDG(SBCELN,1+5) ;NVSBBX		;Length of one entry @@@@
+RS(SBCLST,2+SBCEMX*SBCELN)	;Area for circular buffer
+>
    IFN CHAOS,<
 	SUBTTL	STORAGE FOR CHAOSNET
 

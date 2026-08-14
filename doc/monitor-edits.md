@@ -79,6 +79,7 @@ New parameters:
 - `CHAOS` (to enable Chaosnet code), 
 - `CHINET` (to use Chaos-over-IP in CHAOS.MAC),
 - `VTSSW` (to enable, default disable, the VTS support), and
+- `TSBSW` (to enable Telnet Subnegotiation handling in TVTSRV)
 - `NTTCVT` (number of Chaosnet NVTs).
 
 ## STG.MAC
@@ -97,4 +98,12 @@ Chaosnet NVT support. Extend TDCALL macro with CN (Chaosnet) case. Chaos NVT ini
 
 Print SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT on Chaosnet NVTs (like SYSTEM:INTERNET-LOGIN-MESSAGE.TXT is printed on TCP NVTs).
 
-Support Telnet subnegotiations for window size and terminal type (ANSI, DEC-VT100, VT100, XTERM, XTERM-256COLOR are recognized and all map to the VT100 terminal type). **Note** that this required changes to TVTLEN/CVTLEN, which are defined in TVTSRV but used in TTYDEF and TTYSRV, which thus need recompiling.
+Extended to handle Telnet Subnegotiations (under control of the `TSBSW` parameter, cf SITE.MAC) for
+- "window size" ([RFC 1073](https://datatracker.ietf.org/doc/html/rfc1073)), 
+- "terminal type" ([RFC 1091](https://datatracker.ietf.org/doc/html/rfc1091)), and
+- "location" ([RFC 779](https://datatracker.ietf.org/doc/html/rfc779)) options. 
+The first two mean that TOPS-20 now automatically understands your terminal window size and what terminal type your terminal window app is using (if it is ansi, dec-vt100, vt100, xterm, or xterm-256color).
+
+**Note** that this required changes to TVTLEN/CVTLEN, which are defined in TVTSRV but used in TTYDEF and TTYSRV, which thus need recompiling.
+
+**Also note** that some definitions from `<CHAOS.FINGER>FNGDEF.MAC` are copied in `TVTDEF.MAC`, in order to set the location in a way compatible with `FINGER` and its `<CHAOS.FINGER>GETLOC` library.

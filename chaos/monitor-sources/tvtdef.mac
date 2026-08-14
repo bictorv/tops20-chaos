@@ -42,6 +42,7 @@ WILOPT==10			;OFFSET FOR REQUESTS
 MAXOPT==^D18			;ONLY 1 HALF WORD OF OPTION BITS
 >
 ifn TSBSW,<
+LOCOPT==^d23			;Location option
 TTPOPT==^d24			;Terminal type option
 WSZOPT==^d31			;Window size option
 WILOPT==WSZOPT+1		;OFFSET FOR REQUESTS
@@ -114,16 +115,38 @@ ifn TSBSW,<
 ;; The above single word actually has the following FOUR fields, which works
 ;; since WILOPT (the max implemented option+1) is just 10. But when doing
 ;; options like ^d31 (window size), we need four words.
-NVTODP=TTDDLN+1			;DO options being negotiated
-NVTOWP=NVTODP+1			;WILL options being negotiated
-NVTODR=NVTOWP+1			;DO options enabled (result)
-NVTOWR=NVTODR+1			;WILL options enabled (result)
-NVSBLN=NVTOWR+1			;SB buffer len
-NVSBPT=NVSBLN+1			;SB buffer ptr
-NVSBBF=NVSBPT+1			;SB buffer
-NVSBBX=5			;max len of buffer (5 words of 4 8-bit bytes)
-NVSBBB=<NVSBBX*4>		;bytes
+NVTODP==TTDDLN+1		;DO options being negotiated
+NVTOWP==NVTODP+1		;WILL options being negotiated
+NVTODR==NVTOWP+1		;DO options enabled (result)
+NVTOWR==NVTODR+1		;WILL options enabled (result)
+NVSBLN==NVTOWR+1		;SB buffer len
+NVSBPT==NVSBLN+1		;SB buffer ptr
+NVSBBF==NVSBPT+1		;SB buffer
+NVSBBX==5			;max len of buffer (5 words of 4 8-bit bytes)
+NVSBBB==<NVSBBX*4>		;bytes
 if2,<ifl TVTLEN-<NVSBBF+NVSBBX>,<printx ?TVTLEN does not match NVSBBF>> ;double-check
+
+;; Subnegotiation request circular list (cf STG: SBCEMX, SBCELN, SBCLST)
+sbcrix==0			; SBCRIX - the read index
+sbcwix==1			; SBCWIX - the write index
+sbcnts==2			; offset of subsequent entries 
+; The first word of each entry is a "header" (9 bits just to make it legible in debug):
+edefstr(sbtty,0,8,9)		;CTRLTT of the request TVT
+edefstr(sbjob,0,17,9)		;JOBNO of the request TVT
+edefstr(sbopt,0,26,9)		;Telnet option
+edefstr(sblen,0,35,9)		;The length of the value in the following buffer
+
+;TTYLOC definitions - MUST MATCH FNGDEF!
+;User block definition - contains job number and starting time
+TL%JOB==777000,,000000		;Job number
+TL%STM==000777,,777777		;Job starting time (low 27 bits)
+
+;Terminal entry definitions
+.TDWHO==0			;Who has this entry
+.TDLKD==1			;This entry locked - don't use (-1 = locked)
+.TDLOC==2			;What the string location is
+ .TDLLN==6			;How many words for string
+.TDLEN==.TDLOC+.TDLLN		;Length of each entry
 >
 
 ;TVTLEN IS DEFINED IN TTYDEF

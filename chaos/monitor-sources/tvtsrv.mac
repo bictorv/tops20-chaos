@@ -76,6 +76,9 @@ ifn chaos,<
  	SEARCH TVTDEF
 	extn <chkcvt>
 >
+ifn TSBSW,<
+	extn <sbclst,sbcemx,sbceln>
+>
 	TTITLE	(TVTSRV,TVTSRV,< - Internet TVT Dependent routine>)
 
 
@@ -807,6 +810,11 @@ NVTSB:	movei t3,.dfsb
 	aos nvsbln(t2)		; and count it.
 	ret
 
+;;; Subnegotiation is done in a separate monitor fork, since the IAC SE
+;;; is detected in code at TTCH7 scheduler context, and can't even do simple things
+;;; like GTJFN - plus it's bad to do too much at scheduler level.
+;;; So NVTSE enqueues subnegotiations which are handled separately.
+
 ;; NVTSE - end of subnegotiation value, act on it
 ; Make sure we go back to normal state after this, and
 ; reset counter and buffer pointer after calling the handler.
@@ -842,8 +850,46 @@ NVTSE:	stkvar <nvsbp,dynpt>
 	 bug.(inf,nvtsex,tvtsrv,soft,<NVTSE option not enabled>,<<t1,opt>,<t3,bits>>)
 	 jrst nvtsee		;Just ignore it.
 	endif.
-	move t3,nvsbp		;Set up arg (bp after option)
-	call @nvtseo(t1)	;Call the handler for the option
+	;bug.(inf,nvtse9,tvtsrv,soft,<Handling subneg option>,<<t1,opt>>)
+
+	call sbcful		;Is the subneg list full?
+	ifnsk.
+	 bug.(inf,nvtse7,tvtsrv,<Subneg list full, ignoring option>,<<t1,opt>>)
+	 jrst nvtsee		; yes, so ignore this
+	endif.
+	;; I guess NOINT is not needed, when we're in sched context?
+	;NOINT
+	move t4,sbclst+sbcwix	;Get write index
+	imuli t4,sbceln		; make it offset into list
+	xmovei t4,sbclst+sbcnts(t4)	;Make address of entry
+	stor t1,sbopt,(t4)	;Save option
+	;; Note: this often isn't correct (but off-by-one). Use sbtty to find job# instead.
+	load t1,tcjob,(t2)	;Get controlling job
+	stor t1,sbjob,(t4)	;save job
+	load t1,tintl,(t2)	;Get internal line nr
+	stor t1,sbtty,(t4)	;and tty
+	move t1,nvsbln(t2)	;Get subneg value length
+	sos t1			;minus option byte
+	stor t1,sblen,(t4)
+	move t2,(t4)		;Debug: get the whole header
+	move t3,sbclst+sbcwix
+	aos t4		;Point to buffer
+	txo t4,.p08
+	;; Copy the value bytes
+	do.
+	 jumpe t1,endlp.
+	 ildb t3,nvsbp
+	 idpb t3,t4
+	 sos t1
+	 loop.
+	enddo.
+	;; Update write index
+	;; NOINT here, to make sure
+	NOINT
+	aos t1,sbclst+sbcwix
+	cail t1,sbcemx
+	 setzm sbclst+sbcwix
+	OKINT
 nvtsee:	move t2,dynpt		;Who knows what the handler did with t2
 	setzm nvsbln(t2)	;Clear the buffer
 	xmovei t3,nvsbbf(t2)
@@ -853,11 +899,75 @@ nvtsee:	move t2,dynpt		;Who knows what the handler did with t2
 
 	endsv.
 
+	SWAPCD
+
+;; Here is the NVT SE handler fork.
+nsefrk::movx t1,usrctx		;Set up user context
+	movem t1,ffl
+	mcentr			;Establish JSYS context
+	setzm sbclst+sbcrix	;Reset indexes
+	setzm sbclst+sbcwix
+nsefr0:	movei t1,nsetst		;Sched test routine
+	mdisms			;Wait for work to do
+	move t3,sbclst+sbcrix
+	camn t3,sbclst+sbcwix
+	ifnsk.
+	 bug.(inf,nsefrz,tvtsrv,soft,<Sched test passed but no work>,<<t3,rix>>)
+	 jrst nsefr0		;There wasn't any work to do?
+	endif.
+	;; Set up args for the option handler:
+	;; T1/ option
+	;; T2/ dynamic data (or 0)
+	;; T3/ address of sbc entry
+	imuli t3,sbceln
+	xmovei t3,sbclst+sbcnts(t3)	;Get the entry
+	load t2,sbtty,(t3)	;Get the tty
+	call lcktty		;Lock TTY dynamic data and get it in T2
+	 tdza t1,t1		; wasn't fully active
+	  move t1,t2
+	push p,t2		;Save LCKTTY value
+	move t2,t1		;Value for handler (this might be zero)
+	load t1,sbopt,(t3)	;Get the telnet option
+	call @nvtseo(t1)	;Go handle it
+	pop p,t2		;Get LCKTTY value again
+	call ulktty		;Unlock tty database again
+	;; Consume the entry
+	NOINT
+	aos t1,sbclst+sbcrix	;Move past this one
+	cail t1,sbcemx		;Did we move too far?
+	 setzb t1,sbclst+sbcrix	;then back to zero
+	OKINT
+	;bug.(inf,nsefrx,tvtsrv,soft,<Looking for more work>,<<t1,rix>>)
+	jrst nsefr0		;And try again
+
+	RESCD
+
+;; Is there room to write one more entry?
+;; If (write index+1) mod list length == read index, the answer is no.
+sbcful:	saveac <t1,t2>
+	move t1,sbclst+sbcwix
+	aos t1
+	cail t1,sbcemx
+	 setz t1,
+	camn t1,sbclst+sbcrix
+	 ret
+	retskp
+
+;; Scheduler test for subneg fork.
+;; Test if read index == write index, which means the list is empty
+nsetst:	move t1,sbclst+sbcrix
+	camn t1,sbclst+sbcwix
+	 jrst 0(t4)		;Nothing there
+	jrst 1(t4)
+
+	SWAPCD
+
 ;; Subnegotiation option handlers
 NVTSEO:	
-repeat TTPOPT,<
+repeat LOCOPT,<
 	IFIW!R			;No handler for these.
 >
+	IFIW!NVSLOC		;Handle location (RFC 779)
 	IFIW!NVSTTY		;Handle terminal type (RFC 1091)
 repeat WSZOPT-TTPOPT-1,<
 	IFIW!R			;No handler for these
@@ -867,6 +977,120 @@ repeat WILOPT-WSZOPT,<
 	IFIW!R			;No handler for these.
 >
 
+;; NVSLOC - handle subneg about location
+; T1/ option (not interesting)
+; T2/ dynamic data
+; T3/ subneg list entry pointer
+; Returns +1 always.
+
+nvsloc:	stkvar <ecent,opbp,ttloc,fjfn,jspadd,tlpag,myjob,mytty,locln>
+	movem t3,ecent
+	;move t2,(t3)		;Get header for debug
+	;bug.(inf,nvslo8,tvtsrv,soft,<NVSLOC called>,<<t3,sptr>,<t2,hdr>>)
+	load t2,sbjob,(t3)
+	movem t2,myjob
+	load t2,sbtty,(t3)
+	movem t2,mytty
+	load t2,sblen,(t3)
+	movem t2,locln
+	xmovei t3,1(t3)
+	txo t3,.p08
+	movem t3,opbp
+	move t1,mytty
+	call tlocop		;Open and map our page of TTYLOC
+	ifnsk.
+	 bug.(chk,nvsloz,tvtsrv,soft,<Failed to init TTYLOC>)
+	 ret
+	endif.
+	movem t1,fjfn		;Save JFN (so we can close it later)
+	movem t2,jspadd		;JSB page address so we can deallocate it
+	movem t3,tlpag		;TTYLOC page# our entry is on
+
+	;; Calculate address of our entry on the page
+	move t1,mytty
+	imuli t1,.tdlen
+	andi t1,777		;Save only offset
+	add t1,jspadd		;Make it an address in the JSB page
+	movem t1,ttloc		;Save offset of our entry
+	
+	;; Check option value length
+	skipe locln
+	ifskp.
+	 ;; just clear the location
+	 move t1,mytty
+	 ;bug.(inf,nvslo0,tvtsrv,soft,<Clearing location for tty>,<<t1,line>>)
+	 move t1,ttloc
+	 setzm .tdwho(t1)
+	 jrst nvslo9		;Be done
+	endif.
+
+	;; Now update the entry in ttyloc
+	;; Get job nr from tty nr, since TCJOB sometimes seems to be off?
+	move t1,mytty
+	movei t1,.ttdes(t1)
+	hrroi t2,t3
+	movei t3,.jijno		;Get job number from tty
+	getji%
+	ifjer.
+	 bug.(chk,nvslo4,tvtsrv,soft,<GETJI failed for my tty>,<<t1,err>>)
+	 jrst nvslo9		;Bail out
+	endif.
+	came t3,myjob
+	 movem t3,myjob		;Use it: sometimes TCJOB seems off?
+
+repeat 0,<
+	;; Debug
+	move t1,mytty
+	move t2,locln
+	bug.(inf,nvslo2,tvtsrv,soft,<Setting location for tty>,<<t1,line>,<t3,job>,<t2,locln>>)
+>
+	move t1,ttloc
+	setom .tdlkd(t1)	;Lock the slot
+
+	move t1,myjob		;Get job start time
+	hrroi t2,t3
+	movei t3,.jistm
+	getji%
+	ifjer.
+	 bug.(chk,nvslo3,tvtsrv,soft,<GETJI failed for my job>,<<t1,err>>)
+	else.
+	 ;; Update our entry
+	 move t1,ttloc
+	 move t2,myjob
+	 stor t2,tl%job,.tdwho(t1)	;Save our job #
+	 stor t3,tl%stm,.tdwho(t1)	;Save starting time
+	 ;; Now copy the location string
+	 move t3,locln		;Length of option value
+	 xmovei t2,.tdloc(t1)	;Write here
+	 txo t2,.p07
+	 ;; copy string
+	 do.
+	  ildb t1,opbp
+	  ;; check that it is ascii
+	  caige t1,.chspc
+	  ifskp.
+	   cail t1,.chdel
+	  anskp.
+	   idpb t1,t2
+	   sojg t3,top.
+	  else.
+	   bug.(inf,nvslo1,tvtsrv,soft,<Illegal byte in location>,<<t1,byte>>)
+	   exit.		;Ignore this and the rest
+	  endif.
+	 enddo.
+	 setz t1,
+	 idpb t1,t2		;Null-terminate the string
+	endif.
+nvslo9:	;; Done, unlock the entry and unmap the file page
+	move t1,ttloc
+	setzm .tdlkd(t1)	;Unlock our slot again
+	move t1,fjfn
+	move t2,tlpag
+	call tloczz		;Unmap page and close TTYLOC file
+	ret			;Done.
+
+	endsv.
+
 ;; NVSTTY - handle subneg about terminal type
 ; T1/ option
 ; T2/ dynamic data
@@ -875,12 +1099,16 @@ repeat WILOPT-WSZOPT,<
 ; If the terminal type received is recognized, changes the terminal type
 ; but not the width and length.
 ; If the terminal type isn't recognized, does nothing
-; @@@@ but maybe do SB TTYTYPE SEND again? Once only.
+; @@@@ but maybe do SB TTYTYPE SEND again? Once only? Naah.
 
-nvstty:	stkvar <opbp,dynpt,ttpbp,<ttpbuf,<nvsbbb+1>/5>>
+nvstty:	stkvar <opbp,dynpt,sbce,ttpbp,<ttpbuf,<nvsbbb+1>/5>>
+	jumpe t2,r		;If no dynamic data, ignore
 	movem t2,dynpt
-	movem t3,opbp
-	move t1,nvsbln(t2)
+	movem t3,sbce
+	xmovei t1,1(t3)		;Addr of buffer
+	txo t1,.p08
+	movem t1,opbp		;Option bp
+	load t1,sblen,(t3)
 	;; Check option value length
 	caige t1,2		;Must have at least IS and a byte of ttype
 	ifnsk.
@@ -891,14 +1119,14 @@ nvstty:	stkvar <opbp,dynpt,ttpbp,<ttpbuf,<nvsbbb+1>/5>>
 	ildb t1,opbp
 	caie t1,0		;TTYTYPE IS = 0
 	ifnsk.
-	 bug.(inf,nvttpc,tvtsrv,soft,<TTYTYPE bad code, expected IS>,<<t1,code>>)
+	 bug.(inf,nvttpc,tvtsrv,soft,<TTYTYPE bad code, expected IS=0>,<<t1,code>>)
 	 ret
 	endif.
 	;; Copy the non-nul-terminated 8-bit buffer to a 7-bit buffer
 	xmovei t1,ttpbuf
 	txo t1,.p07
 	movem t1,ttpbp		;here's the buffer pointer
-	move t2,nvsbln(t2)
+	load t2,sblen,(t3)
 	subi t2,1		;minus code
 	do.
 	 ildb t1,opbp
@@ -930,7 +1158,9 @@ nvstty:	stkvar <opbp,dynpt,ttpbp,<ttpbuf,<nvsbbb+1>/5>>
 	;;bug.(inf,nvtt2,tvtsrv,soft,<TTYTYPE not found, ignoring>,<<t2,flags>>)
 	ret
 
-;; Terminal type table
+	endsv.
+
+;; Yet Another Terminal Type Table
 nvtttb:	xwd nvttbz,nvttbz	;length, max length
 	xwd [asciz /ANSI/],.tt100	;RFC1700 standard
 	xwd [asciz /DEC-VT100/],.tt100	;RFC1700 standard
@@ -945,10 +1175,14 @@ nvttbz==.-nvtttb
 ; T3/ option value buffer pointer
 ; Returns +1 always
 
-nvswsz:	stkvar <opbp,twid,tlen>
-	movem t3,opbp
-	move t1,nvsbln(t2)	;Check the buffer length, so we have the right data
-	caie t1,5		;option + 4 bytes of size
+nvswsz:	stkvar <ecent,opbp,twid,tlen>
+	jumpe t2,r		;If no dynamic data, ignore
+	movem t3,ecent
+	xmovei t1,1(t3)		;Get addr of buffer
+	txo t1,.p08		; make it a bp
+	movem t1,opbp
+	load t1,sblen,(t3)
+	caie t1,4		;Just the size
 	ifnsk.
 	 bug.(inf,nvwsz,tvtsrv,soft,<NAWS option length bad>,<<t1,tlen>>)
 	 ret
@@ -965,8 +1199,9 @@ nvswsz:	stkvar <opbp,twid,tlen>
 	ior t3,t1
 	movem t3,tlen
 	move t1,twid
-	;; bug.(inf,nvwsz1,tvtsrv,soft,<NAWS window size>,<<t1,twid>,<t3,tlen>>)
-	load t1,tintl,(t2)	;Get internal line number
+;	load t1,tintl,(t2)	;Get internal line number
+	move t3,ecent		;Use the line in the request
+	load t1,sbtty,(t3)
 	movei t1,.ttdes(t1)	;make device designator
 	movei t2,.mosll		;set line length
 	move t3,tlen
@@ -984,7 +1219,124 @@ nvswsz:	stkvar <opbp,twid,tlen>
 	ret			;Done
 
 	endsv.
+
+;; Handling of TTYLOC.BIN file.
+;; When a location needs to be updated, the file is opened and
+;; the page containing the entry for ctrltt is mapped to a JSB
+;; page (well no, to FPG0A). The update is done, and then the page is unmapped,
+;; the file is closed, and the page released.
+;; I hope this is quick enough, but it won't happen all the time.
+
+;; Open and map in the page of ttyloc which is needed for our line
+; T1/ tty nr
+; returns +1 on failure.
+; returns +2 on success, with
+;  T1/ JFN 
+;  T2/ address of JSB page (FPG0A)
+;  T3/ page# of TTYLOC our entry is on - use this to calculate offset
+
+tlocop:	stkvar <fjfn,tno>
+	movem t1,tno
+	call tlocof		;Open the TTYLOC file
+	 ret			;failed, ignore this
+	movem t1,fjfn
+	move t2,tno
+	call tlocmp		;Map it
+	 ret			;failed
+	move t1,fjfn
+	retskp
+	endsv.
+
+;; Unmap and close the TTYLOC file
+; T1/ JFN
+; T2/ page# of TTYLOC file we're using
+;; T2/ JSB address to deallocate
+; returns +1
+tloczz:	stkvar <jaddr,fjfn,ttpag>
+	movem t1,fjfn
+	hrl t1,fjfn
+	hrr t1,t2		;JFN,,page of file
+	movei t2,1		;no flags, 1 page
+	ufpgs%
+	ifjer.
+	 bug.(chk,ttlocw,tvtsrv,soft,<UFPGS failed for TTYLOC>,<<t1,arg>>)
+	endif.
+	;; SETMPG version
+	setz t1,		;Unmap this
+	movei t2,fpg0a		;address, not page
+	call setmpg
+	move t1,fjfn
+	closf%
+	ifjer.
+	 bug.(chk,ttlocy,tvtsrv,soft,<Failed to close TTYLOC>,<<t1,err>>)
+	endif.
+	ret
+
+	endsv.
+
+;; Open the TTYLOC file, return a JFN
+; return +2 on success, +1 on failure
+tlocof:	stkvar <fjfn>
+	movx t1,gj%sht!gj%old
+	hrroi t2,[asciz /finger:ttyloc.bin/]
+	gtjfn%
+	ifjer.
+	 ;; To create the file, run TTYLOC once.
+	 bug.(chk,initt0,tvtsrv,soft,<Failed to get jfn for TTYLOC.BIN>,<<t1,err>>)
+	 ret
+	endif.
+	movem t1,fjfn
+	movx t2,of%rd!of%wr!of%thw	;Thawed
+	openf%
+	ifjer.
+	 bug.(chk,initt2,tvtsrv,soft,<Failed to open TTYLOC.BIN>,<<t1,err>>)
+	 move t1,fjfn
+	 rljfn%
+	 ifjer.
+	  bug.(chk,initt3,tvtsrv,soft,<Failed to release jfn of TTYLOC.BIN>,<<t1,err>>)
+	 endif.
+	 ret
+	endif.
+	move t1,fjfn
+	retskp
+
+	endsv.
+
+;; Map the TTYLOC file.
+; T1/ JFN
+; T2/ tty nr
+; return +1 on failure,
+; +2 on success, with
+;  T2/ address of allocated page
+;  T3/ page# of TTYLOC which is mapped to the page in T2
+tlocmp:	stkvar <fjfn,jspadd,ttlpag>
+	movem t1,fjfn
+	imuli t2,.tdlen
+	lsh t2,-9		;Make it a page
+	movem t2,ttlpag		;This is the page of TTYLOC we need
+	;; SETMPG version (cf GCHAR in MNETDV)
+;; cf USGMAP, perhaps?
+	move t2,fjfn
+	imuli t2,mljfn		;compute internal address of jfn
+	hll t1,filofn(t2)	;get OFN,,pn
+	hrr t1,ttlpag		;This is the page of TTYLOC to map
+	movx t2,pm%rd!pm%wr!FPG0A	;rw map of FPG0A
+	call setmpg		;map that page
+	skip fpg0a		;page fault it in
+	ifjer.
+	 bug.(chk,initt6,tvtsrv,soft,<Failed to map page of TTYLOC.BIN>,<<t1,page>>)
+	 ret			;Return now if file is damaged
+	endif.
+	movei t2,FPG0A		;Here is the address we mapped it to
+	move t3,ttlpag		;Return also which page of TTYLOC our entry is on
+	retskp.
+
+	endsv.
+
+;; End of subneg code (which is run by separate fork),
+;; now back to scheduler level code which needs to be resident.
 >
+	RESCD
 
 ;NVTNRM - NORMAL NVT CHARACTER PROCESSING
 
@@ -1370,7 +1722,11 @@ NVTDOD:	IFIW!RSKP		;BINARY XMIT -- OK WITH US
 ;	IFIW!NVTDRC		;REMOTE CONTROLLED TRANS & ECHO
 	IFIW!R			;DO NOT DO IT FOR NOW
 ifn TSBSW,<
-repeat WSZOPT-RCTOPT-1,<
+repeat LOCOPT-RCTOPT-1,<
+	IFIW!R
+>
+	IFIW!RSKP		;Location - yes please
+repeat WSZOPT-LOCOPT-1,<
 	IFIW!R
 >
 	IFIW!RSKP		;NAWS - ok with us
@@ -1525,7 +1881,11 @@ NVTWID:
 	IFIW!R			;TIMING MARK -- HUH?
 	IFIW!R			;WHAT'S HE TRYING TO DO?
 ifn TSBSW,<
-repeat WSZOPT-RCTOPT-1,<
+repeat LOCOPT-RCTOPT-1,<
+	IFIW!R
+>
+	IFIW!RSKP		;Location - please do
+repeat WSZOPT-LOCOPT-1,<
 	IFIW!R
 >
 	IFIW!RSKP		;NAWS - please do!
