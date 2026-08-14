@@ -580,11 +580,12 @@ CM1DB::
 
 ;TOP-LEVEL COMMAND ARGUMENT BLOCK FOR WHEN NOT LOGGED IN
 
-IFE PANDASW,<	;[1]
+;; [BV: remove "lazy login" to make life a little harder for script kiddies]
+IFE PANDASW*0,<	;[1]
 CM1XL::	FLDDB. .CMKEY,,CTBLX,<Command,>	;Including SYSTAT command
 CM1YL::	FLDDB. .CMKEY,,CTBLY,<Command,>	;[4427] Excluding SYSTAT command
 >;IFE PANDASW
-IFN PANDASW,<	;[1]
+IFN PANDASW*0,<	;[1]
 CM1XL::	FLDBK. .CMKEY,,CTBLX,<Command,>,,[
 		BRMSK. (KEYB0.,KEYB1.,KEYB2.,KEYB3.,<.>)],[FLDDB. .CMUSR]
 CM1YL::	FLDBK. .CMKEY,,CTBLY,<Command,>,,[
