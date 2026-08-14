@@ -1,0 +1,4 @@
+;; This was the original value from Panda <MONITOR-SOURCES>
+;	VEDIT==^D9179
+;; Note that it is shown in OCTAL as 21733, since 1B18 (VI%DEC) isn't set in SCVN.
+VEDIT==21734			;so increase it in octal for simplicity?
