@@ -4,7 +4,7 @@ Summary of EXEC edits for Chaosnet. Might not always be up-to-date or complete.
 
 ## EXEC0
 
-Print "(Chaos)" suffix for SYSDPY etc. FINGER /CHAOSNET switch.
+Print "(Chaos)" suffix for SYSDPY etc. Add FINGER /CHAOSNET switch, and /BATCH and /NO-BATCH switches.
 
 ## EXEC1
 
