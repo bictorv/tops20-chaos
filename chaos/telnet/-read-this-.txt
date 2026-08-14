@@ -1,0 +1,10 @@
+This TELNET is modified to give priority to Chaosnet over TCP, and to
+support Telnet options for window size (RFC1073), location (RFC779),
+and terminal type (RFC1091).
+
+For compilation, you need FNGDEF.UNV and GETLOC.REL from <CHAOS.FINGER>
+(which may be installed in <CHAOS.SUBSYS> already). Note that
+linking (using LOAD) automatically saves TELNET.EXE.
+
+Note that TELNET uses an updated GETLOC which supports fetching only
+the TTYLOC location (without prefix or host).

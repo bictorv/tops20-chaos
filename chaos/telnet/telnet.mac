@@ -1,3 +1,7 @@
+;<CHAOS.TELNET>TELNET.MAC.971, 13-Aug-2026 13:59:01, Edit by BV
+; Add support for window size, location, and terminal type options.
+; Note that the location is fetched from TTYLOC using GETLOC, which
+; meant adding some PSECTs for compatibility.
 ;<TELNET>TELNET.MAC.967, 15-Nov-2002 21:39:23, Edit by MRC
 ; Update built-in list of port numbers to correspond to modern-day reality
 ;<TELNET>TELNET.MAC.966, 15-Nov-2002 21:15:32, Edit by MRC
@@ -15,7 +19,7 @@
 TELWHO==1			; who last edited TELNET (0=MRC, 1=BV)
 TELVER==7			; TELNET's release version (matches monitor's)
 TELMIN==0			; TELNET's minor version
-TELEDT==^D967			; TELNET's edit version
+TELEDT==^D971			; TELNET's edit version
 
 ;  TELNET is the user subsystem to communicate with other systems via a
 ; network.  TELNET runs on TOPS-20 release 5.3 and later monitors.  TELNET
@@ -26,13 +30,17 @@ TELEDT==^D967			; TELNET's edit version
 	SUBTTL Definitions
 
 	SEARCH MACSYM,MONSYM	; system definitions
+	search fngdef
 	SALL			; suppress macro expansions
 	.DIRECTIVE FLBLST	; sane listings for ASCIZ, etc.
 	.TEXT "/NOINITIAL"	; suppress loading of JOBDAT
 	.TEXT "TELNET/SAVE"	; save as TELNET.EXE
 	.TEXT "/SYMSEG:PSECT:CODE" ; put symbol table and patch area in CODE
 	.REQUIRE HSTNAM		; host name routines
+	.require getloc
 	.REQUIRE SYS:MACREL	; MACSYM support routines
+
+	extern getloc
 
 ; Assembly switches
 
@@ -49,7 +57,9 @@ IFNDEF NTIBSZ,<NTIBSZ==^D100>	; size of NET input buffer in words
 IFNDEF NTOBSZ,<NTOBSZ==^D50>	; size of NET output buffer in words
 IFNDEF CMDBSZ,<CMDBSZ==^D30>	; size of command text buffer
 IFNDEF ATMBSZ,<ATMBSZ==^D10>	; size of atom buffer
-IFNDEF PURBEG,<PURBEG==100000>	; origin of pure code
+IFNDEF PURBEG,<PURBEG==60000>	; origin of pure code
+IFNDEF PAGBEG,<PAGBEG==100000>	; origin of paged stuff
+IFNDEF CODBEG,<CODBEG==300000>	; origin of code
 IFNDEF DDTADR,<DDTADR=770000>	; well known entry address of DDT
 
 ; AC's
@@ -253,6 +263,9 @@ IN2ACS:	BLOCK 20		; PSI level 2 AC save area
 
 	RELOC			; .LOW. PSECT
 
+	.psect paged,pagbeg
+	.endps
+
 	.PSECT DATA,1000	; enter data PSECT
 
 PDL:	BLOCK PDLLEN		; main program stack
@@ -295,6 +308,13 @@ NTIBFR:	BLOCK NTIBSZ		; NET input buffer
 NTOPTR:	BLOCK 1			; NET output buffer pointer
 NTOCTR:	BLOCK 1			; NET output buffer counter
 NTOBFR:	BLOCK NTOBSZ		; NET output buffer
+
+; subnegotiation stuff
+SUBBP:	block 1			; subnegotiation byte pointer
+	subbfz==^D32		; How many bytes fit in the buffer
+SUBBUF:	block <subbfz/4>+1	; buffer (8-bit bytes)
+SUBCNT:	block 1			; Number of bytees left in buffer
+SUBFLG:	block 1			; -1 => collecting subnegotiation value
 
 ; JFNs
 
@@ -356,7 +376,7 @@ CMDBLK:	REPARS			; reparse address
 	ATMBSZ*5		; size of atom buffer
 	GTJBLK			; GTJFN% block
 
-	.PSECT CODE,PURBEG	; pure code begins here
+	.PSECT PURE,PURBEG	; pure code begins here
 
 ;  Top-level command parser.  Note that it is quite intentional that CMDCMD
 ; takes HSTCMD as the next in the chain instead of NETCMD.  The problem is
@@ -530,9 +550,14 @@ WDOTAB:				; various WILL/WONT/DO/DONT options
 	TPC TACUID,^D26		; TACACS user identification
 	TPC OUTMRK,^D27		; output marking
 	TPC TRMLOC,^D28		; terminal location number
+	TPC TN3270,^d29		;Telnet 3270 regime
+	TPC X3PAD,^d30		;X.3 PAD
+	TPC WINSIZ,^d31		;Negotiate about window size
 WDOMAX==.-WDOTAB-1
 	EXOPL==^D255		; extended options
 	SUBTTL Start of program
+
+	.PSECT CODE,CODBEG
 
 ; Entry vector
 
@@ -1677,6 +1702,13 @@ CHSIC1:	MOVEI A,CMDBLK		; restore CSB
 	  IDPB C,A		; save in filename string
 	  JUMPN C,TOP.
 	ENDDO.
+	;; Are we using Telnet protocol?
+	hrroi a,atmbuf
+	hrroi b,[asciz /TELNET/]
+	stcmp%
+	 ercal fatal
+	skipn a
+	 setom TPROTP		;Yep!
 	MOVEI A,CMDBLK		; restore CSB
 	CONFIRM
 	SETOM ECHOP		; normal state is remote echo
@@ -2052,9 +2084,13 @@ ICP:	TMSG < Trying... >
 	SKIPN TPROTP		; send initial commands if TELNET protocol
 	IFSKP.
 	  SETOM SUPGAP		; will always suppress GA's
-	  TELCM1 <IAC,DO,SUPRGA>
+	  TELCMD <IAC,DO,SUPRGA>
+	  TELCMD <IAC,WILL,WINSIZ>
+	  TELCMD <IAC,WILL,SNDLOC>
+repeat 0,<			;Let remote do WILL ECHO instead
 	  SKIPN LINEDP		; is line editor enabled?
 	   CALL RMTECO		; no, want remote echo
+>
 	ENDIF.
 	MOVX A,<CR%MAP!CR%CAP!CR%ST!RCVFRK>
 	CFORK%			; create receive fork
@@ -2209,8 +2245,16 @@ CLSINT:	MOVEM 17,IN1ACS+17	; save all ACs
 	  LOAD A,RF%STS,A	; get fork status code
 	  CAIE A,.RFFPT		; did somebody zap me?
 	  IFSKP.
+	    move c,b		;save PC
 	    CALL TTYRST		; no, restore TTY to normal mode
-	    EMSG <Abnormal fork termination interrupt
+	    EMSG <Abnormal fork termination interrupt>
+	    tmsg < at PC >
+	    movei a,.priou
+	    move b,c
+	    movei c,8
+	    nout%
+	     ercal fatal
+	    tmsg <
 >
 	    CALL CLOSE1		; flush JFNs, etc.
 	    MOVX A,PC%USR!CLSRET ; dismiss back to top level
@@ -2337,7 +2381,8 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 	    ENDIF.
 	    LOOP.
 	  ENDIF.
-	  ILDB B,NTIPTR		; read a single byte
+	;; Get a byte and handle it
+dobyt:!	  ILDB B,NTIPTR		; read a single byte
 	  SKIPN TPROTP		; using TELNET protocol?
 	  IFSKP.
 	    AOSN NETCMP		; yes, IAC in progress?
@@ -2350,7 +2395,8 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 	    ELSE.
 	      CAIN B,IAC	; IAC in progress, quoted IAC?
 	    ANSKP.
-	      SKIPN DEBUGP	; no, log the message if debugging
+	;; Handle IAC
+doiac:!	      SKIPN DEBUGP	; no, log the message if debugging
 	      IFSKP.
 		TMSG <*R*IAC>
 		CAIL B,TPLMIN ; known option?
@@ -2382,6 +2428,7 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 	       SETOM DONTP
 	      CAIE B,SB		; subnegotiations are losers!
 	      IFSKP.
+repeat 0,<
 		TMSG <
 ******************************
 * Foreign host sent a subnegotiation.  Either there was a
@@ -2390,11 +2437,24 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 * You will probably see some garbage after this message.
 ******************************
 >
+>
+repeat 1,<	setom subflg	;Note we're now handling a subneg
+		move a,[point 8,subbuf]	;Make a bp to the subneg value buffer
+		movem a,subbp
+		movei a,subbfz	;Set up counter for contents
+		movem a,subcnt
+>
 	      ENDIF.
+	      caie b,se		; subnegotiation end?
+	      ifskp.
+		setzm subflg	; Clear subneg flag
+		call dose	; Handle it
+	      endif.
 	      LOOP.
 	    ENDIF.
 	    AOSE WILLP		; WILL in progress?
-	    IFSKP.
+	;; Handle WILL
+dowil:!	    IFSKP.
 	      CALL OPTLST
 	      CAIE B,SUPRGA	; WILL SUPPRESS-GA?  (yay!)
 	      IFSKP.
@@ -2434,7 +2494,8 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 	      LOOP.
 	    ENDIF.
 	    AOSE WONTP		; WONT in progress?
-	    IFSKP.
+	;; Handle WONT
+dowon:!     IFSKP.
 	      CALL OPTLST
 	      CAIE B,ECHO	; WONT ECHO?
 	      IFSKP.
@@ -2457,7 +2518,8 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 	      LOOP.
 	    ENDIF.
 	    AOSE DOP		; DO in progress?
-	    IFSKP.
+	;; Handle DO
+dodo:!	    IFSKP.
 	      CALL OPTLST
 	      CAIE B,TRNBIN	; DO TRANSMIT-BINARY?
 	      IFSKP.
@@ -2472,6 +2534,22 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 		TELCMD <IAC,WILL,TIMMRK>
 		LOOP.
 	      ENDIF.
+	      caie b,winsiz	;DO WINSIZE?
+	      ifskp.
+		call sndsiz
+		loop.
+	      endif.
+	      caie b,sndloc	;Do SNDLOC?
+	      ifskp.
+		call doloc
+		loop.
+	      endif.
+	      caie b,trmtyp	;Do TRMTYP?
+	      ifskp.
+		;; Say we will, when asked by subneg
+		TELCMD <IAC,WILL,TRMTYP>
+		loop.
+	      endif.
 	      MOVE A,B		; unsupported DO option, refuse it
 	      MOVX B,IAC
 	      CALL NETOUT
@@ -2487,7 +2565,8 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 	      CALL NETFRC
 	      LOOP.
 	    ENDIF.
-	    AOSE DONTP		; DONT in progress?
+	;; Handle DONT
+dodnt:!	    AOSE DONTP		; DONT in progress?
 	    IFSKP.
 	      CALL OPTLST
 	      CAIN B,TRNBIN	; DONT TRANSMIT-BINARY?
@@ -2510,6 +2589,14 @@ RCVFRK:	MOVE P,[IOWD PDLLEN,RPDL] ; set up fork's stack
 	    TELCM1 <IAC,DO,SUPRGA>
 	    LOOP.		; get next (command) byte
 	  ENDIF.
+	;; Handle normal input
+donrm:!
+	  skipn subflg
+	  ifskp.
+	    sosle subcnt	;If there is room,
+	     idpb b,subbp	; put it in the buffer
+	    loop.		;and go back for next byte
+	  endif.
 	  SKIPGE NTOINP		; flush if output abort in progress
 	   LOOP.
 	  IDPB B,TTOPTR		; else stick it in buffer
@@ -2670,6 +2757,149 @@ TTYRST:	SKIPL TTYINP		; are we TTYINI'd?
 	SFCOC%
 	 ERCAL FATAL
 	RET
+
+; Find terminal size and send it using a subnegotiation
+SNDSIZ:	stkvar <tlen,twid>
+	movei a,.priou
+	movx b,.morll		;Get length
+	mtopr%
+	 ercal fatal
+	movem c,tlen
+	movx b,.morlw		;Get width
+	mtopr%
+	 ercal fatal
+	movem c,twid
+	TELCM1 <IAC,SB,WINSIZ>	;Say we're sending the window size
+	move b,twid		;width
+	call sndsht
+	move b,tlen		;length
+	call sndsht
+	TELCMD <IAC,SE>		;Finish off with a subneg end.
+	ret
+
+; send a short in MSB-first order
+sndsht:	lsh b,-8		;MSB first
+	cain b,IAC		;Quote IAC
+	 call netout
+	call netout
+	move b,twid
+	andi b,377
+	cain b,IAC
+	 call netout
+	call netout
+	ret
+
+; Handle received subnegotiation end 
+; Look at option code, act accordingly.
+DOSE:	saveac <a,b,c>
+	stkvar <opt,vlen,sbp>
+	move a,[point 8,subbuf]
+	movem a,sbp
+	ildb a,sbp
+	movem a,opt		;Save Telnet option code
+	movei a,subbfz		;Calculate value length
+	sub a,subcnt
+	skipge a
+	 movei a,subbfz		;max
+	movem a,vlen
+	move a,opt
+	caie a,TRMTYP
+	ifskp.
+	  move b,vlen
+	  move c,sbp
+	  call dosett
+	else.
+	  TMSG <*Got unexpected subnegotiation option: >
+	  move b,opt
+	  call optlst
+	endif.
+	ret
+	endsv.
+
+; Handle TRMTYP subneg
+; B/ subneg value length
+; C/ subneg value bp
+dosett:	stkvar <vlen,sbp>
+	movem b,vlen
+	movem c,sbp
+	caie b,2		;TRMMTYP SEND
+	ifnsk.
+	 TMSG <[Got bad value length in TRMTYP subnegotiation: >
+	 movei a,.priou
+	 move b,vlen
+	 movei c,^d10
+	 nout%
+	  ercal fatal
+	 TMSG <]
+>
+	 ret
+	endif.
+	ildb b,sbp		;Get command
+	caie b,1		;Is it SEND?
+	ifskp.
+	 call sndtrm		;Send TRMTYP subneg answer
+	else.
+	 TMSG <[Got bad command in TRMTYP subnegotiation (expected 1): >
+	 movei a,.priou
+	 movei c,^d10
+	 nout%
+	  ercal fatal
+	 TMSG <]
+>
+	endif.
+	ret
+	endsv.
+
+; Send TRMTYP subneg
+sndtrm:	stkvar <ttp>
+	seto a,
+	hrroi b,c
+	movx c,.jitno		;Get my terminal number
+	getji%
+	 ercal fatal
+	move b,c
+	movei a,.ttdes(b)
+	gttyp%			;Get the terminal type
+	 ercal fatal
+	;; Add yet another table of all known terminal type names?
+	;; But instead, make it easy for us and handle what we need only.
+	movei a,[byte (9) "U","N","K","N","O","W","N",777]
+	cain b,.tt100
+	 movei a,[byte (9) "V","T","1","0","0",777]
+	;; add more types here?
+	movem a,ttp
+	TELCM1 <IAC,SB,TRMTYP,0>	;TRMTYP IS
+	move b,ttp
+	call netstr
+	TELCMD <IAC,SE>		;Done
+	ret
+	endsv.
+
+; Find location and send it using a subnegotiation
+DOLOC:	stkvar <<locbuf,20>>
+	saveac <a,b,c>
+	seto a,
+	hrroi b,c
+	movx c,.jitno
+	getji%
+	 ercal fatal
+	move b,c
+	txo b,gl%loc!gl%lon	;Only get TTYLOC part
+	hrri a,locbuf
+	hrli a,(point 9,)	;Make it 9-bit for NETSTR
+	push p,a
+	call getloc
+	 ret			;Failed, just do nothing
+	movei b,777		;Finish it with a 777
+	idpb b,a
+	setz b,			;and null to be safe
+	idpb b,a
+	TELCM1 <IAC,SB,SNDLOC>
+	pop p,b
+	call netstr
+	TELCMD <IAC,SE>
+	ret
+	endsv.
 
 ; Enter remote echo, note that TELCM1 is used so caller must NETFRC
 
