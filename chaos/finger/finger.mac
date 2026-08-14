@@ -197,6 +197,7 @@ FLAG. FL%NLI			;Working with people not logged in
 ifn chaos,<
 FLAG. FL%CHA			; Doing Chaosnet finger
 >
+FLAG. FL%BAT			; Show batch jobs
 DEF%FL==0 ;FL%IDT			;Default flags
 
 ;Definitions for finger list
@@ -237,6 +238,7 @@ TTYTAB:	TABTOP
 
 SWITBL:	TABTOP
 	CMDENT ARPANET,.INTER,CM%INV
+	CMDENT BATCH,.BATCH
 ifn chaos,<
 	CMDENT CHAOSNET,.CHAOS
 >
@@ -254,6 +256,7 @@ IFDEF ID%TTY,<
 	CMDENT LOGIN,.LOGIN
 	CMDENT NETWORK,.NETWO
 	CMDENT NO,%NOPLN,CM%ABR!CM%INV
+	CMDENT NO-BATCH,.NO.BA
 	CMDENT NO-DETACHED,.NO.DE
 	CMDENT NO-OPERATOR,.NO.OP
 %NOPLN:!CMDENT NO-PLAN,.NO.PL
@@ -682,6 +685,10 @@ SWIRET:	TXO B,GL%TST		;If one of these, we will want to test
 	ANDCAM B,LOCFLG		;So clear that flag
 	RET			;And go back
 
+.BATCH:	txoa q,FL%BAT
+.NO.BA:	 txz q,fl%bat
+	ret
+
 .DETAC:	TXOA Q,FL%IDT!FL%DET	;Include detached jobs
 .NO.DE:	 TXZ Q,FL%IDT!FL%DET	;Don't include them
 	RET
@@ -913,6 +920,11 @@ PRINTP:	SKIPL A,.JITNO(J)	;Is job detached?
 	IFNSK.			;If we bombed
 	  ESOUT%		;Ouput the error they had
 	  JRST DEATH		;And shut down
+	ENDIF.
+	TXNN B,GL%BAT		;Was it batch?
+	IFSKP.
+	 TXNN Q,FL%BAT		;Did we want it?
+	  RET			;No
 	ENDIF.
 	TXNN B,GL%TST		;Do we want this TTY?
 	 RET			;No, go back now
