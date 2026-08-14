@@ -87,8 +87,14 @@ USERS=USRINF+MAXUSR*USRRCL	;Start of username strings
 ;TTYLOC definitions
 
 ;User block definition - contains user number and job number
+ifn 0,<
 TL%JOB==777777,,000000		;Job number
 TL%USR==000000,,777777		;User number
+>
+ifn 1,<
+TL%JOB==777000,,000000		;Job number
+TL%STM==000777,,777777		;Job starting time (low 27 bits)
+>
 
 ;Terminal entry definitions
 .TDWHO==0			;Who has this entry
@@ -136,6 +142,7 @@ GL%LOC==1B1			;Use TTYLOC, cancels out GL%PRE if TTYLOC
 GL%TST==1B2			;Only return string if tty passes set bit test
 GL%TIP==1B3			;Suppress "Tip-" if this was a tip
 GL%DES==1B4			;Only return description a la TTYLOC.CMD
+gl%lon==1b5			;Location from TTYLOC only (no prefix or host)
 GL%CHA==1B10			;This was a Chaosnet location
 GL%USD==1B11			;This terminal was in use
 GL%HWR==1B12			;This was a hardwired terminal

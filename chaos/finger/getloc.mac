@@ -289,6 +289,12 @@ GETLOC::SAVEAC <C,D>
 	   ERRRET <Terminal number out of range> ;It's bad, say so
 	 ENDIF.
 	CALL GTTLOC		;Get a location from TTYLOC
+	txnn fl,gl%lon
+	ifskp.			;Only return the TTYLOC locatoin
+	 move b,[point 7,locbuf]	;Copy from here to caller's bp in A
+	 call cpystr
+	 retskp
+	endif.
 	BOUND TTYNUM,PNV	;Ethernet?
 	 SKPA
 	  CALLRET .DOPNV	;Yes
@@ -1411,6 +1417,7 @@ GTTLOC:	SAVEAC <A,B,C,D>
 	CAME A,C		;Do they match?
 	 JRST USETTI
 	HRROI B,C		;Yes, want user number now (job # in A)
+ifn 0,<
 	MOVEI C,.JIUNO
 	GETJI%			;Get it
 	 ERJMP USETTI
@@ -1418,6 +1425,16 @@ GTTLOC:	SAVEAC <A,B,C,D>
 	HRRZS C			;Isolate the right half
 	CAME A,C		;Do they match?
 	 JRST USETTI		;If not, don't use it
+>
+ifn 1,<
+	MOVEI C,.JISTM		;Get job starting time
+	GETJI%			;Get it
+	 ERJMP USETTI
+	LOAD C,TL%STM,C		;Get just the stored bits of the actual time
+	LOAD A,TL%STM,.TDWHO(D) ;Get the starting time of the record
+	CAME A,C		;Do they match?
+	 JRST USETTI		;If not, don't use it
+>
 	MOVE A,[POINT 7,LOCBUF] ;Pointer to where we want to store the name
 	MOVEI B,.TDLOC(D)	;Get location that has the string in B
 	HRLI B,(<POINT 7,0>)	;Make it a byte pointer

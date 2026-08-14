@@ -1,5 +1,15 @@
+This version of FINGER gives priority to Chaosnet over TCP connections. 
+It also changes the defaults to avoid showing detached or batch jobs.
+
 First compile <CHAOS.MM>HSTNAM.MAC and install it in SYS:.
 
 Copy <FINGER>TINIDF.UNV to this directory, or define DSK: as DSK:,<FINGER>.
 
-Then compile GETLOC.MAC and FNGDEF.MAC before compiling FINGER.
+Then compile FNGDEF.MAC and GETLOC.MAC before compiling FINGER and TTYLOC,
+and installing them in e.g. <CHAOS.SUBSYS>. Make FINGER.EXE ephemeral.
+
+Note that the TTYLOC.BIN format is changed/improved, so FINGER.EXE and
+TTYLOC.EXE are incompatible with older versions. 
+
+Note also that a new flag GL%LON has been defined for GETLOC to return
+only the TTYLOC location, without host or type prefix.
