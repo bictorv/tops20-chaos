@@ -532,10 +532,22 @@ INIT:	RESET%			;Flush all I/O, etc.
 	MOVX A,GL%LOC!GL%PRE!GL%TIP ;We don't have any location flags yet
 	MOVEM A,LOCFLG		;So say we want TTYLOC and prefix
 	MOVEI A,.PRIOU		;For our TTY
-	MOVEI B,.MORLW		;Want the width
-	MTOPR%			;Get it
+	;; Check that it is a TTY before checking width (could be net JFN)
+	DVCHR%
 	IFJER.
-	  SETZ C,		;If couldn't get the width, make it zero
+	 SETZ B,		;Play safe
+	ENDIF.
+	LDB B,[POINTR B,DV%TYP]	;Get the type
+	CAIE B,.DVTTY
+	IFNSK.
+	 SETZ C,		;Not a TTY, make it zero
+	ELSE.
+	 MOVEI A,.PRIOU
+	 MOVEI B,.MORLW		;Want the width
+	 MTOPR%			;Get it
+	 IFJER.
+	   SETZ C,		;If couldn't get the width, make it zero
+	 ENDIF.
 	ENDIF.
 	CAIGE C,^D64		;Is it narrower than a small TTY?
 	 MOVEI C,^D132		;Make it really wide, then
