@@ -2778,11 +2778,12 @@ SNDSIZ:	stkvar <tlen,twid>
 	ret
 
 ; send a short in MSB-first order
-sndsht:	lsh b,-8		;MSB first
+sndsht:	push p,b
+	lsh b,-8		;MSB first
 	cain b,IAC		;Quote IAC
 	 call netout
 	call netout
-	move b,twid
+	pop p,b
 	andi b,377
 	cain b,IAC
 	 call netout
