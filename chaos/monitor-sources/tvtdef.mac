@@ -42,6 +42,7 @@ WILOPT==10			;OFFSET FOR REQUESTS
 MAXOPT==^D18			;ONLY 1 HALF WORD OF OPTION BITS
 >
 ifn TSBSW,<
+LGOOPT==^d18			;Logout option (not subneg, but .gt. 17)
 LOCOPT==^d23			;Location option
 TTPOPT==^d24			;Terminal type option
 WSZOPT==^d31			;Window size option
@@ -63,6 +64,8 @@ DEFSTR NVTYP,TTNETW,2,2		;99 Line type
 .TYSUP==2			;99 SUPDUP terminal
 >
 DEFSTR PTITC,TTNETW,5,3		;COUNT, SYNC-INS
+NV%RDY==1b6			;Terminal setup ready
+MSKSTR NVRDY,TTNETW,NV%RDY
 NV%WKS==1B8			;RCTE WAKEUP SEEN
 MSKSTR NVWKS,TTNETW,NV%WKS
 NV%RCS==1B9			;RCTE CHAAGE IN STATE

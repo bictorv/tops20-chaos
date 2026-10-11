@@ -101,7 +101,8 @@ Print SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT on Chaosnet NVTs (like SYSTEM:INTERNET-L
 Extended to handle Telnet Subnegotiations (under control of the `TSBSW` parameter, cf SITE.MAC) for
 - "window size" ([RFC 1073](https://datatracker.ietf.org/doc/html/rfc1073)), 
 - "terminal type" ([RFC 1091](https://datatracker.ietf.org/doc/html/rfc1091)), and
-- "location" ([RFC 779](https://datatracker.ietf.org/doc/html/rfc779)) options. 
+- "location" ([RFC 779](https://datatracker.ietf.org/doc/html/rfc779)), and
+- "logout" ([RFC 727](https://datatracker.ietf.org/doc/html/rfc727)) options. 
 The first two mean that TOPS-20 now automatically understands your terminal window size and what terminal type your terminal window app is using (if it is ansi, dec-vt100, vt100, xterm, or xterm-256color).
 
 **Note** that this required changes to TVTLEN/CVTLEN, which are defined in TVTSRV but used in TTYDEF and TTYSRV, which thus need recompiling.

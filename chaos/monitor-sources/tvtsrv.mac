@@ -324,7 +324,7 @@ ife TSBSW,<
 	TDNN T3,NVTOPF(T2)
 >
 ifn TSBSW,<
-	MOVEI T3,(1B<RCTOPT>)	;RCTE OPTION REQUEST
+	MOVX T3,1B<RCTOPT>	;RCTE OPTION REQUEST
 	TDNN T3,NVTOWP(T2)	;WILL in progress?
 >
 	 RET			;NO
@@ -682,7 +682,7 @@ ifn TSBSW,<
 	SETZRO NVTMO,TTNETW(T2) ;CANCEL ANY TIME-OUT IN PROGRESS
 	MOVE T1,NNGOPT		;GET OPTION AGAIN
 ife TSBSW,<
-	MOVS T3,BITS(T1)	;CONVERT TO FLAG
+	MOVS T3,BITS(T1)	;CONVERT TO FLAG (RH: result)
 	TDNN T3,NVTOPF(T2)	;IS IT OFF
 	 AOS 0(P)		;SKIP IF SUCCESSFUL
 >
@@ -690,10 +690,10 @@ ifn TSBSW,<
 	MOVE T3,BITS(T1)	;CONVERT TO FLAG
 	skipe nngwil
 	ifskp.
-	 TDNN T3,NVTODP(T2)	;IS IT OFF
+	 TDNN T3,NVTODR(T2)	;IS IT OFF
 	  AOS 0(P)		;SKIP IF SUCCESSFUL
 	else.
-	 TDNN T3,NVTOWP(T2)	;IS IT OFF
+	 TDNN T3,NVTOWR(T2)	;IS IT OFF
 	  AOS 0(P)		;SKIP IF SUCCESSFUL
 	endif.
 >
@@ -718,7 +718,7 @@ ife TSBSW,<
 	 JRST T1(T4)		;NOT ACTIVE. THIS SHOULD NOT HAPPEN
 ife TSBSW,<
 	SKIPE TTNETW(T2)	;SATISFIED IF DISCONNECTED
-	TDNN T3,NVTOPF(T2)
+	TDNN T3,NVTOPF(T2)	;Check if still in progress
 	 JRST 1(T4)		;NEGOTIATION COMPLETE
 >
 ifn TSBSW,<
@@ -732,11 +732,11 @@ ifn TSBSW,<
 	ifskp.
 	 subi t3,wilopt
 	 move t3,bits(t3)
-	 tdnn t3,nvtowr(t2)
+	 tdnn t3,nvtowp(t2)
 	  JRST 1(T4)		;NEGOTIATION COMPLETE
 	else.
 	 move t3,bits(t3)
-	 tdnn t3,nvtodr(t3)
+	 tdnn t3,nvtodp(t3)
 	  JRST 1(T4)		;NEGOTIATION COMPLETE
 	endif.
 >
@@ -850,7 +850,6 @@ NVTSE:	stkvar <nvsbp,dynpt>
 	 bug.(inf,nvtsex,tvtsrv,soft,<NVTSE option not enabled>,<<t1,opt>,<t3,bits>>)
 	 jrst nvtsee		;Just ignore it.
 	endif.
-	;bug.(inf,nvtse9,tvtsrv,soft,<Handling subneg option>,<<t1,opt>>)
 
 	call sbcful		;Is the subneg list full?
 	ifnsk.
@@ -865,13 +864,14 @@ NVTSE:	stkvar <nvsbp,dynpt>
 	stor t1,sbopt,(t4)	;Save option
 	;; Note: this often isn't correct (but off-by-one). Use sbtty to find job# instead.
 	load t1,tcjob,(t2)	;Get controlling job
+	callx (msec1,lcl2gl)	; and find the global job no
+	 ret
 	stor t1,sbjob,(t4)	;save job
 	load t1,tintl,(t2)	;Get internal line nr
 	stor t1,sbtty,(t4)	;and tty
 	move t1,nvsbln(t2)	;Get subneg value length
 	sos t1			;minus option byte
 	stor t1,sblen,(t4)
-	move t2,(t4)		;Debug: get the whole header
 	move t3,sbclst+sbcwix
 	aos t4		;Point to buffer
 	txo t4,.p08
@@ -937,7 +937,6 @@ nsefr0:	movei t1,nsetst		;Sched test routine
 	cail t1,sbcemx		;Did we move too far?
 	 setzb t1,sbclst+sbcrix	;then back to zero
 	OKINT
-	;bug.(inf,nsefrx,tvtsrv,soft,<Looking for more work>,<<t1,rix>>)
 	jrst nsefr0		;And try again
 
 	RESCD
@@ -964,7 +963,11 @@ nsetst:	move t1,sbclst+sbcrix
 
 ;; Subnegotiation option handlers
 NVTSEO:	
-repeat LOCOPT,<
+repeat LGOOPT,<
+	IFIW!R			;No handler for these.
+>
+	IFIW!NVSLGO		;Logout (not a subneg really)
+repeat LOCOPT-LGOOPT-1,<
 	IFIW!R			;No handler for these.
 >
 	IFIW!NVSLOC		;Handle location (RFC 779)
@@ -985,8 +988,6 @@ repeat WILOPT-WSZOPT,<
 
 nvsloc:	stkvar <ecent,opbp,ttloc,fjfn,jspadd,tlpag,myjob,mytty,locln>
 	movem t3,ecent
-	;move t2,(t3)		;Get header for debug
-	;bug.(inf,nvslo8,tvtsrv,soft,<NVSLOC called>,<<t3,sptr>,<t2,hdr>>)
 	load t2,sbjob,(t3)
 	movem t2,myjob
 	load t2,sbtty,(t3)
@@ -1018,32 +1019,12 @@ nvsloc:	stkvar <ecent,opbp,ttloc,fjfn,jspadd,tlpag,myjob,mytty,locln>
 	ifskp.
 	 ;; just clear the location
 	 move t1,mytty
-	 ;bug.(inf,nvslo0,tvtsrv,soft,<Clearing location for tty>,<<t1,line>>)
 	 move t1,ttloc
 	 setzm .tdwho(t1)
 	 jrst nvslo9		;Be done
 	endif.
 
 	;; Now update the entry in ttyloc
-	;; Get job nr from tty nr, since TCJOB sometimes seems to be off?
-	move t1,mytty
-	movei t1,.ttdes(t1)
-	hrroi t2,t3
-	movei t3,.jijno		;Get job number from tty
-	getji%
-	ifjer.
-	 bug.(chk,nvslo4,tvtsrv,soft,<GETJI failed for my tty>,<<t1,err>>)
-	 jrst nvslo9		;Bail out
-	endif.
-	came t3,myjob
-	 movem t3,myjob		;Use it: sometimes TCJOB seems off?
-
-repeat 0,<
-	;; Debug
-	move t1,mytty
-	move t2,locln
-	bug.(inf,nvslo2,tvtsrv,soft,<Setting location for tty>,<<t1,line>,<t3,job>,<t2,locln>>)
->
 	move t1,ttloc
 	setom .tdlkd(t1)	;Lock the slot
 
@@ -1198,24 +1179,9 @@ nvswsz:	stkvar <ecent,opbp,twid,tlen>
 	ildb t3,opbp
 	ior t3,t1
 	movem t3,tlen
-	move t1,twid
-;	load t1,tintl,(t2)	;Get internal line number
-	move t3,ecent		;Use the line in the request
-	load t1,sbtty,(t3)
-	movei t1,.ttdes(t1)	;make device designator
-	movei t2,.mosll		;set line length
-	move t3,tlen
-	mtopr%
-	ifjer.
-	 bug.(chk,nvwsl,tvtsrv,soft,<NAWS failed to set line length>)
-	 ret
-	endif.
-	movei t2,.moslw		;set line width
+	stor t3,tplen,(t2)	;Store length
 	move t3,twid
-	mtopr%
-	ifjer. 
-	 bug.(chk,bvwsw,tvtsrv,soft,<NAWS failed to set line width>)
-	endif.
+	stor t3,tpwid,(t2)	;Store width
 	ret			;Done
 
 	endsv.
@@ -1688,7 +1654,10 @@ ife TSBSW,<
 ifn TSBSW,<
 	MOVE T3,BITS(T1)	;YES GET FLAG BITS
 	TDNE T3,NVTOWP(T2)	;OUTSTANDING WILL REQUEST?
+	ifnsk.
+	 addi t1,wilopt		;Note it is a DO/DONT
 	 JRST NVTWI2		;YES GO PROCESS IT
+	endif.
 >
 NVTDO1:	PUSH P,T1		;REMEMBER THE OPTION
 	move t3,bits(t1)	;BV: in case we come from NVTDO+1
@@ -1698,7 +1667,7 @@ ife TSBSW,<
 	 JRST NVTSNR		;YES, SEND NO REPLY
 >
 ifn TSBSW,<
-	TDNE T3,NVTODR(T2)	;IS THE OPTION ON?
+	TDNE T3,NVTOWR(T2)	;IS THE OPTION ON at our end already?
 	 JRST NVTSNR		;YES, SEND NO REPLY
 >
 	CAIGE T1,NVTLOP		;DO WE KNOW ABOUT THIS OPTION
@@ -1708,7 +1677,8 @@ ife TSBSW,<
 	IORM T3,NVTOPF(T2)	;SET OPTION ON
 >
 ifn TSBSW,<
-	IORM T3,NVTODR(T2)	;SET OPTION ON
+	IORM T3,NVTOWR(T2)	;SET OPTION ON at our end
+	;andcam t3,nvtodp(t2)	;and clear in-progress, to be safe?
 >
 	JRST NVTSWL		;AND SEND "WILL"
 
@@ -1722,14 +1692,13 @@ NVTDOD:	IFIW!RSKP		;BINARY XMIT -- OK WITH US
 ;	IFIW!NVTDRC		;REMOTE CONTROLLED TRANS & ECHO
 	IFIW!R			;DO NOT DO IT FOR NOW
 ifn TSBSW,<
-repeat LOCOPT-RCTOPT-1,<
+repeat LGOOPT-RCTOPT-1,<
 	IFIW!R
 >
-	IFIW!RSKP		;Location - yes please
-repeat WSZOPT-LOCOPT-1,<
+	IFIW!NVTLGO		;Logout
+repeat WSZOPT-LGOOPT,<
 	IFIW!R
 >
-	IFIW!RSKP		;NAWS - ok with us
 >
 NVTLOP=.-NVTDOD
 
@@ -1748,6 +1717,57 @@ NVTSGA:	SETONE NVGAB,TTNETW(T2)
 ;DO TIMING MARK PROTOCOL
 
 NVTDTM:	RETSKP
+
+; Do requesrt for NAWS, TRMTYP:
+; If NVRDY is set, it's OK, otherwise not (since it will be overwritten by code before SYSINP).
+NVTNWS:	
+NVTTTP: JXN NVRDY,(T2),RSKP	;Not 0, it's OK
+	RET			;Is 0, say no.
+
+; Logout
+; Can't LGOUT from sched context, so use the subneg mechanism to do it.
+NVTLGO:	load t1,tcjob,(t2)	;Get job for which this is a controlling tty
+	cain t1,-1		;Is there one?
+	 ret			;No job, so say won't.
+	call sbcful		; check if there is room on the subneg list
+	ifnsk.
+	 bug.(inf,nvlg7,tvtsrv,<Subneg list full for LGOOPT>,<<t1,job>>)
+	 ret			;Say "won't".
+	endif.
+	;; OK, write an entry on the sbclst
+	move t4,sbclst+sbcwix	;Get write index
+	imuli t4,sbceln	; make it offset into list
+	xmovei t4,sbclst+sbcnts(t4)	;Make address of entry
+	movei t1,LGOOPT
+	stor t1,sbopt,(t4)	;Save option
+	load t1,tcjob,(t2)	;Get controlling job
+	callx (msec1,lcl2gl)	; and find the global job no
+	 ret			;No such job, say "won't"
+	stor t1,sbjob,(t4)	;save job
+	load t1,tintl,(t2)	;Get internal line nr
+	stor t1,sbtty,(t4)	;save tty
+	setzro sblen,(t4)	;No option value
+	NOINT			;Now add it to the list
+	aos t1,sbclst+sbcwix
+	cail t1,sbcemx
+	 setzm sbclst+sbcwix	;(wrapped)
+	OKINT
+	retskp			;Say we will logout
+
+;; Do the actual logout - called by NSEFRK, the subneg handler fork.
+;; T1/ option (LGOOPT)
+;; T2/ dynamic data
+;; T3/ subneg list entry pointer
+;; Return +1 always
+nvslgo:	load t1,sbjob,(t3)
+	camn t1,gbljno		;Logging out self?
+	 seto t1,
+	bug.(inf,nvslg0,tvtsrv,soft,<Logging out job>,<<t1,job>>)
+	LGOUT%			;Do the logout
+	ifjer.
+	 bug.(inf,nvslg1,tvtsrv,soft,<Failed logging out job>,<<t1,err>>)
+	endif.
+	ret
 
 
 ;NVTDNT - PROCESS "DONT"
@@ -1768,7 +1788,10 @@ ife TSBSW,<
 ifn TSBSW,<
 	MOVE T3,BITS(T1)	;YES GET FLAG BITS
 	TDNE T3,NVTOWP(T2)	;OUTSTANDING WILL REQUEST?
+	ifnsk.
+	 addi t1,wilopt		;Note it is a DO/DONT
 	 JRST NVTWN2		;YES
+	endif.
 >
 NVTDN1:	PUSH P,T1		;SAVE OPTION
 	move t3,bits(t1)	;BV: in case we come from NVTDO+1
@@ -1777,7 +1800,7 @@ ife TSBSW,<
 	TDNN T3,NVTOPF(T2)	;OPTION ALREADY OFF?
 >
 ifn TSBSW,<
-	TDNN T3,NVTODR(T2)	;OPTION ALREADY OFF?
+	TDNN T3,NVTOWR(T2)	;OPTION ALREADY OFF?
 >
 	 JRST NVTSNR		;YES. SEND NO REPLY
 	CAIGE T1,NVTLOP		;DO WE KNOW ABOUT THIS OPTION?
@@ -1786,7 +1809,7 @@ ife TSBSW,<
 	ANDCAM T3,NVTOPF(T2)	;CLEAR THE OPTION
 >
 ifn TSBSW,<
-	ANDCAM T3,NVTODR(T2)	;CLEAR THE OPTION
+	ANDCAM T3,NVTOWR(T2)	;CLEAR THE OPTION
 >
 	JRST NVTSWN		;AND SEND "WON'T"
 
@@ -1799,10 +1822,9 @@ NVTDND:	IFIW!R			;DILEMMA -- HE WANTS OFF, BUT WE CAN'T
 	IFIW!R			;TIMING MARK -- HUH?
 	IFIW!R			;TURN OFF RCTE
 ifn TSBSW,<
-repeat WSZOPT-RCTOPT-1,<
+repeat WSZOPT-RCTOPT,<
 	IFIW!R
 >
-	IFIW!R			;NAWS
 >
 ifn .-NVTDND-NVTLOP,<printx ?NVTDND length mismatch>
 
@@ -1844,8 +1866,15 @@ ife TSBSW,<
 	ANDCAM T3,NVTOPF(T2)	;AND CLEAR OUTSTANDING BIT
 >
 ifn TSBSW,<
-	IORM T3,NVTOWR(T2)	;SET WILL BIT
-	ANDCAM T3,NVTOWP(T2)	;AND CLEAR OUTSTANDING BIT
+	cail t1,wilopt		;Is it a DO in response, really? (WILOPT gets set)
+	ifskp.			;No:
+	 IORM T3,NVTODR(T2)	;SET DO BIT
+	 ANDCAM T3,NVTODP(T2)	;AND CLEAR OUTSTANDING BIT
+	else.			;Yes:
+	 subi t1,wilopt
+	 IORM T3,NVTOWR(T2)	;SET WILL BIT
+	 ANDCAM T3,NVTOWP(T2)	;AND CLEAR OUTSTANDING BIT
+	endif.
 	cain t1,ttpopt		;Was it TTYTYPE?
 	 call ttpsb		;Then send a subnegotiation asking for the type
 >
@@ -1868,6 +1897,13 @@ ife TSBSW,<
 >
 ifn TSBSW,<
 	IORM T3,NVTODR(T2)	;DONE. SET OPTION "ON"
+	caie t1,ttpopt		;Did we get a WILL TRMTYP?
+	ifskp.			;Hack:
+	 bug.(inf,nvttpz,tvtsrv,soft,<Got WILL TTPOPT, saying DO>)
+	 pop p,t1		;Get the option back
+	 call NVTXDO		;Say DO TTPOPT
+	 jrst ttpsb		;Start subnegotiation right away
+	endif.
 >
 	JRST NVTSDO		;AND SEND "DO"
 
@@ -1884,38 +1920,16 @@ ifn TSBSW,<
 repeat LOCOPT-RCTOPT-1,<
 	IFIW!R
 >
-	IFIW!RSKP		;Location - please do
-repeat WSZOPT-LOCOPT-1,<
+	IFIW!RSKP		;Location - please do!
+	IFIW!NVTTTP		;Terminal type - sure, perhaps
+repeat WSZOPT-TTPOPT-1,<
 	IFIW!R
 >
-	IFIW!RSKP		;NAWS - please do!
+	IFIW!NVTNWS		;NAWS - please do, perhaps
 >
 ifn .-NVTWID-NVTLOP,<printx ?NVTWID length mismatch>
 
 ifn TSBSW,<
-;; DOTTP - negotiate about TTYTYPE, and if client is willing, ask for it
-;
-; Return +1 always
-
-dottp:	saveac <t1,t2,t3>
-	move t2,ctrltt		;Get controlling tty
-	call chktvt		;Is it a TVT?
-	ifnsk.
-ifn CHAOS,<
-	 call chkcvt		;No, is it a Chaos TVT?
-	annsk.
->
-	 ret			;None, so skip this
-	endif.
-	call lcktty		;Get dynamic data
-	 jrst dottpz		;Not active, unlock and return
-	movei t1,ttpopt		;Negotiate about TTYTYPE
-	move t3,bits(t1)
-	iorm t3,nvtodp(t2)	;Note that DO in progress
-	call nvtxdo		;Tell client to DO it
-dottpz:	call ulktty		;Unlock database again - go OKSKED(?)
-	ret
-
 ;; TTPSB - respond to a WILL TTYTYPE with IAC SB TTYTYPE SEND IAC SE
 ; T1/ option
 ; T2/ dynamic data
@@ -1936,7 +1950,7 @@ ttpsb:	movei t1,6		;IAC SB TTYTYPE SEND IAC SE
 	call tcobq
 	movei t1,sech		;SE
 	call nvtssp		;IAC SE
-	oksked			;Try this (cf NVTRRR)
+	oksked
 	ret
 >
 
@@ -1965,9 +1979,18 @@ ife TSBSW,<
 	ANDCAM T3,NVTOPF(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
 >
 ifn TSBSW,<
-	ANDCAM T3,NVTODP(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
-	ANDCAM T3,NVTOWP(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
-	ANDCAM T3,NVTODR(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+	cail t1,wilopt
+	ifskp.
+	 ;; Here to handle WONT reply to our DO/DONT,
+	 ;; clear DO-in-progress, and DO-result.
+	 ANDCAM T3,NVTODP(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+	 ANDCAM T3,NVTODR(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+	else.			;or DONT reply to our WILL/WONT, so
+	 ;; clear  WILL-in-progress and WILL-result
+	 ANDCAM T3,NVTOWP(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+	 ANDCAM T3,NVTOWR(T2)	;CLEAR BOTH OUTSTAND AND WILL FLAGS
+	 subi t1,wilopt		;Clean up
+	endif.
 >
 	RET
 
@@ -1982,6 +2005,7 @@ ifn TSBSW,<
 	TDNN T3,NVTODR(T2)	;OPTION ALREADY OFF?
 	 JRST NVTSNR		;YES. SEND NO RPLY
 	ANDCAM T3,NVTODR(T2)	;STRANGELY ENOUGH, THE USER END
+	andcam t3,nvtodp(t2)	; and in-progress
 >
 	JRST NVTSDN		;NEVER HAS ANY OPTIONS TO TURN OFF
 
@@ -2192,6 +2216,40 @@ Data:	TTYLIN - TTY line number that was passed to ASNTVT
 
 	ENDSV.
 
+;; TVTRDY is called after SYSINP in MEXEC, when the terminal has been set up
+;; (e.g. size and other features, and type).
+;; Set flag in TTNETW to indicate that terminal setup is done (NVRDY),
+;; and ask the other end for info.
+;;
+;; T2/ internal line number
+tvtrdy::
+	call lcktty		;Lock database
+	ifnsk.			;Couldn't
+	 bug.(inf,tvtrdx,tvtsrv,soft,<Could not lock database for line>,<<t2,line>>)
+	else.
+	 setone nvrdy,(t2)	;Say we're all setup
+	 ;; And ask the other end to send us info:
+	 call dottp		;Terminal type
+	 call donaws		;Window size
+	 call doloc		;Location
+	endif.
+	call ulktty		;Unlock
+	ret
+
+;; Send DO for an option, unless it is already enabled.
+;; T2/ dynamic data
+dottp:	movei t1,TTPOPT
+	jrst doopt
+donaws:	movei t1,WSZOPT
+	jrst doopt
+doloc:	movei t1,LOCOPT
+doopt:	move t3,bits(t1)
+	tdne t3,nvtodr(t2)
+	 ret			;Already got WILL and enabled it
+	iorm t3,nvtodp(t2)	;Note DO in progress
+	call nvtxdo		;Tell client to DO it
+	ret
+
 IFN PANDASW,<	;[2]
 ;TVRLOT - Read TVT binary state
 ; Accepts: T2/ Address of dynamic data
@@ -2444,8 +2502,8 @@ ife TSBSW,<
 	TDNE T3,NVTOPF(T2)	; Have we said we will do RCTE?
 >
 ifn TSBSW,<
-	MOVEI T3,(1b<RCTOPT>)	; RCTE-on bit
-	TDNE T3,NVTOWP(T2)	; Have we said we will do RCTE?
+	MOVX T3,1B<RCTOPT>	; RCTE-on bit
+	TDNE T3,NVTOWR(T2)	; Have we said we will do RCTE?
 >
 	CALL CKNNVT		; And is this a "new" TELNET terminal?
 ifn VTSSW,<
@@ -3085,7 +3143,7 @@ TVTMSG::			; Routine to type out a greeting message
 	MOVX T1,<GJ%SHT!GJ%OLD>	; The file must allready exist
 	HRROI T2,[ASCIZ/SYSTEM:INTERNET-LOGIN-MESSAGE.TXT/]
 >
-ifn TSBSW,<
+ifn TSBSW*0,<
 	;; This looks like a random place to do this, but why not?
 	;; Things are stable enough at this point.
 	call dottp		;Try to get TTYTYPE from the client

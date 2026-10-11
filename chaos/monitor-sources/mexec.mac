@@ -1195,15 +1195,19 @@ SYSINP:	SKIPE CRJFLG		;IF CREATED JOB, GO SET IT UP.
 	MOVE B,CTRLTT		;GET CONTROLLING TERMINAL
 	CALL CHKTVT		;ARE WE A TVT?
 ife chaos,<
-	 SKIPA			;NO
+	ifskp.
+	  call tvtrdy##		;Say the terminal is ready
           CALL TVTMSG		;YES SO OUTPUT THE MESSAGE
+	endif.
 >
 ifn chaos,<
 	ifskp.
+	  call tvtrdy##		;Say the terminal is ready
           CALL TVTMSG		;YES SO OUTPUT THE MESSAGE
 	else.
 	 call chkcvt		;Are we a Chaos NVT?
 	 ifskp.
+	  call tvtrdy##		;Say the terminal is ready
 	  call cvtmsg		;Yes, so output a greeting
 	 endif.
 	endif.
