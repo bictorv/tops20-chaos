@@ -1,5 +1,6 @@
 This version of FINGER gives priority to Chaosnet over TCP connections. 
-It also changes the defaults to avoid showing detached or batch jobs.
+It also changes the defaults to avoid showing detached or batch jobs,
+and makes sure to check that it's using a TTY before fetching its width.
 
 First compile <CHAOS.MM>HSTNAM.MAC and install it in SYS:.
 

@@ -43,6 +43,8 @@ DEFINE UNV: SYS:
 ! Other definitions
 !
 TIMEZONE -1
+! Don't log out jobs when the connection is lost
+disable detach-carrier-off
 BATCH-BACKGROUND
 DISABLE ACCOUNT-VALIDATION
 !ENABLE TAPE-DRIVE-ALLOCATION

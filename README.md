@@ -193,6 +193,7 @@ The code in `KLHSRV.MAC` (to support `LITES%` in KLH10 when it is compiled with 
 Of course! Please report them to me.
 
 Known things:
+- Loopback connections (from self to self) most often drop (initial?) packets. E.g. `FINGER @self` typically returns no output, `TELNET self` takes a few `^T` to get going and doesn't show the first few packets worth of output.
 - `BUGINF FLKINT` when creating outgoing connections.
 	- This seems not to cause problems, but indicates some bug of course.
 - `BUGCHK IPIBLP` when lots of input coming in a connection.
