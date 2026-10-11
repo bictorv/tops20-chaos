@@ -1500,7 +1500,7 @@ IFN CHAOS,<
 ;CDRINI
 ; Similar to ADRINI, but only Chaosnet things. Skip returns unless the file can't be opened.
 ; Entries are of the form:
-;  CHAOSNET-ADDRESS:3443, CHAOS-IP-GATEWAY:10.1.1.72, CHAOS-ADDR-DOMAIN:CH-ADDR.NET
+;  CHAOS-ADDRESS:3443, CHAOS-IP-GATEWAY:10.1.1.72, CHAOS-ADDR-DOMAIN:CH-ADDR.NET
 ; and there is only one entry.
 ; ADRINI should be called before this, perhaps.
 ; Call this when initializing Chaos, I suppose.
@@ -2159,6 +2159,7 @@ DEFINE KEY(NAME,DATA)
 
 ifn CHAOS,<
 TABLE(CHNAM)
+KEY ADDRESS,ADCHAO		;Alias for CHAOS-ADDRESS
 KEY CHAOS-ADDR-DOMAIN,ADCHDN	;Chaosnet address domain, e.g. CH-ADDR.NET
 KEY CHAOS-ADDRESS,ADCHAO	;Chaosnet address
 KEY CHAOS-IP-GATEWAY,ADCHGW	;Chaosnet IP gw
@@ -3405,11 +3406,11 @@ IFN PANDASW,<	;[6]
 	XWD [ASCIZ/VMS/],.HSVMS
 	XWD [ASCIZ/WAITS/],.HSDEC
 IFE PANDASW,<	;[6]
-NUMOPS=.-OPSTAB-1
+NUMOPS==.-OPSTAB-1
 >;IFE PANDASW
 IFN PANDASW,<	;[6]
 	XWD [ASCIZ/WINDOWS/],.HSWIN
-NUMOPS=.-OPSTAB
+NUMOPS==.-OPSTAB
 >;IFN PANDASW
 	SUBTTL Host Table Routines -- Convert host number to new format
 
