@@ -3143,11 +3143,6 @@ TVTMSG::			; Routine to type out a greeting message
 	MOVX T1,<GJ%SHT!GJ%OLD>	; The file must allready exist
 	HRROI T2,[ASCIZ/SYSTEM:INTERNET-LOGIN-MESSAGE.TXT/]
 >
-ifn TSBSW*0,<
-	;; This looks like a random place to do this, but why not?
-	;; Things are stable enough at this point.
-	call dottp		;Try to get TTYTYPE from the client
->
 	GTJFN%			; Get the JFN
 	 ERJMP R	       	; assume file does not exist
 	MOVEM T1,TVMSGJ		; Save the JFN
