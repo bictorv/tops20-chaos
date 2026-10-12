@@ -34,9 +34,9 @@ You may then want to compile and install `TELNET`, `FINGER` and the MM mailsyste
 ## Configuration
 
 Add the file `SYSTEM:CHAOSNET.ADDRESS`, with the following parameters:
-- `CHAOS-ADDRESS:`*nnnn* where *nnnn* is your octal Chaosnet  address
+- `CHAOS-ADDRESS:`*nnnn* where *nnnn* is your octal Chaosnet  address. (`ADDRESS:`*nnnn* is an shorthand alias.)
 - `CHAOS-IP-GATEWAY:`*a.b.c.d* where *a.b.c.d* is the IP address of a [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) which is configured to accept Chaos-over-IP from the IP of your TOPS-20 system (see [below](#chaosnet-bridge)).
-- `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`, max len 50. (Optional: the default *dname* is coded in `STG.MAC`, at `CHADDN`.)
+- `CHAOS-ADDR-DOMAIN:`*dname* to set the address DNS domain to *dname*, default `CH-ADDR.NET`, max len 50. (Optional: the default *dname* is coded in `STG.MAC`, at `CHADDN`.) The address domain is used to translate Chaosnet addresses to host names, see RFC 1034 pp 12-13.
 
 **Example:** the Chaosnet bridge has IP 10.0.1.1, and the TOPS-20 Chaosnet address is 3412 (octal).
 ```
@@ -162,9 +162,10 @@ The following new JSYSes are only enabled with the `VTSSW` compile-time setting 
 
 ## What should be done later
 
+- Make `CHANM%` work without DNS, ideally using `SYSTEM:HOSTS.TXT` or less ideally using a separate hosts file.
 - SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
 - DECnet now is enabled, and seems to work (with `decnet=true` on `devdef ni0` config in klh10). It has also been tested with [HECnet](http://mim.softjar.se/hecnet.htm)/[PyDECnet](https://github.com/pkoning2/pydecnet) too (using `vde_switch`/`vde_plug2tap`, see https://github.com/virtualsquare/vde-2 or you linux package manager.)
-- Summarise what changes were done to the original.
+- Summarise what changes were done to the original. (See [monitor-edits](doc/monitor-edits.md) and [exec-edits](doc/exec-edits.md).)
 
 ### RESOLV
 
