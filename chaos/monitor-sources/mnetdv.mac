@@ -889,9 +889,16 @@ LCLHS0:	LOAD P1,NTLNK,(P1)	; Next interface
 	LINBSZ==^D80		;[8975] Size of TRVAR of line buffer in words
 	NAMNUM==MAXLW		;[9156] Size of TRVAR for NAMLST and NUMLST
 
+ife CHAOS,<
 	DEFINE TRHOST,<		;[9156]
 	TRVAR <<TMPBUF,TMPBSZ>,<LINBUF,LINBSZ>,<NAMLST,NAMNUM+1>,<NUMLST,NAMNUM+1>,SAVPDL,TERM,ENTTYP,HSTFIL,HSTPGC,HSTPAG,HSTPTR,HSTCNT> ;[9156][8969][8975]
 >				;[9156] end of DEFINE TRHOST
+>
+ifn CHAOS,<
+	DEFINE TRHOST,<		;Add HCHAD
+	TRVAR <<TMPBUF,TMPBSZ>,<LINBUF,LINBSZ>,<NAMLST,NAMNUM+1>,<NUMLST,NAMNUM+1>,SAVPDL,TERM,ENTTYP,HSTFIL,HSTPGC,HSTPAG,HSTPTR,HSTCNT,HCHAD>
+>				;end of DEFINE TRHOST
+>
 	SUBTTL Host File Routines -- Read SYSTEM:HOSTS.TXT
 
 ;[9156] HSTINI is called to read SYSTEM:HOSTS.TXT to load the host tables.
@@ -946,6 +953,9 @@ HSTIN0:	MOVEM P,SAVPDL		;[9156] Store the current stack pointer
 
 HSTIN6:	SETZM NAMLST		;[9156] No names yet
 	SETZM NUMLST		;[9156] No addresses yet
+ifn CHAOS,<
+	setzm hchad		;No Chaos address yet
+>
 	MOVE P,SAVPDL		;[8975] Reset stack fence
 
 	CALL GLINE		;[8975](P3/P4) Read a (non comment) line in
@@ -1023,9 +1033,90 @@ HSTI14:	MOVEI T1,NAMLST		;[9156] Point to name list
 	MOVEI T2,NUMLST		;[9156] Point to address list
 	TXO T3,HS%AUT		;[9156] This data is considered authoritative
 	MOVX T4,.INFIN		;[9156] Load infinite uptime for TTL
+ifn CHAOS,<
+	push p,MHOSTS		;Save current value to keep track of what was added
+				;(Note that HSTIE5 will restore the stack.)
+>
 	CALL ADDHOS		;[9156] (T1,T2,T3,T4/) Add host to table
 	 JRST HSTIE5		;[9156] It didn't work, host table full
+ifn CHAOS,<
+	movem t2,hchad		;Returns Chaos addr hash, if any
+	;; Post-processing: add new HOSTN and HOSTPN entries if needed.
+	;; T1 has hashed primary address.
+	;; Need to copy all HOSTN for this host, to be able to find aliases.
+	pop p,t4		;Restore old MHOSTS value
+	move t2,hostnn(t1)	;Get the actual address
+	txnn t2,ne%unt		;Is the primary address UNternet (Chaos)?
+				; (Should also check that the network part is 7)
+	ifskp.			;Yes: simple case, just note the fact
+	 move t3,hchad
+	 load t3,hstndx,(t1)	;Get the primary name entry index
+	 setsec t3,intsec	; in the right section
+	 setone hstunt,(t3)	;Set the UNT flag
+	else.			;Else the primary is INternet: more work
+	 skipe hchad		;Did we find a Chaosnet address too?
+	  call hstcfx		;Fix up Chaos data
+	;; Else it was only an Internet addr, no Chaos
+	endif.
+>
 	JRST HSTIN6		;ONWARD
+
+ifn CHAOS,<
+;; Fixup by copying Internet HOSTN entries (which point to the names) with Chaos addr,
+;; and making a new HOSTPN pointed to by the Chaos addr,
+;; which in turn points to the primary-name HOSTN entry.
+;; T4/ MHOSTS value *before* the ADDHOS call
+
+hstcfx:	savep			;Save P1-P4 for use
+	;; Copy the old HOSTN entries to new ones.
+	;; Remember the (new) primary HOSTN for Chaos, which is used in HOSTPN below,
+	;; i.e. the copy for the HOSTN with HSTNIC==0, so can be done on-the-fly.
+	;; For each copy, NICNAM and HSTNMP are copied, HSTIDX is HCHAD, and HSTUNT is 1.
+	;; Loop from old MHOSTS value to current one (at this point), adding copies.
+	;; First check for room: end+diff .lt. NHOSTN
+	;; Start: -oMHOSTS; end: -MHOSTS; diff -MHOSTS-(-oMHOSTS) = -MHOSTS+oMHOSTS
+	;; New end: -MHOSTS+diff = -MHOSTS+(-MHOSTS+oMHOSTS) = -MHOSTS-MHOSTS+oMHOSTS = -2xMHOSTS+oMHOSTS = oMHOSTS-2xMHOSTS
+	;; (Note: MHOSTS and oMHOSTS (in T4) are negative)
+	move t2,t4
+	sub t2,mhosts
+	sub t2,mhosts
+	caile t2,nhostn
+	 jrst addhox		;Sorry, won't fit
+	movm p1,t4		;Start value
+	setsec p1,intsec
+	movm p2,mhosts		;end value
+	setsec p2,intsec
+	move p3,hchad		;Used every iteration
+	setz t4,		;Clear the primary chaos index
+	came p1,p2
+	ifskp.
+	 bug.(chk,hstcfz,mnetdv,soft,<HSTCFX called with no hosts to fix>,<<p1,start>,<p2,end>,<p3,hchad>>)
+	 ret
+	endif.
+	do.
+	 camn p1,p2		;Are we done?
+	  exit.
+	 move t2,hostn(p1)	;Get a hostpn
+	 txnn t2,hstnic		;Not a nickname: the primary
+	  movem p1,t4		;Save the index
+	 movm t3,mhosts		;Get a new index
+	 setsec t3,intsec	; in the right section
+	 movem t2,hostn(t3)	;Save it
+	 stor p3,hstidx,(t3)	; and set its HSTIDX
+	 setone hstunt,(t3)	; and its UNternet flag
+	 sos mhosts		;Count the used-up index
+	 aoja p1,top.
+	enddo.
+
+	;; Create a new HOSTPN entry for the Chaos address,
+	;; where HSTTTL is .INFIN and HSTNDX is the new primary HOSTN,
+	;; which is in T4.
+	movx t2,.infin		;HOSTS.TXT values last forever
+	hrr t2,t4		;Here is the primary HOSTN index
+	movem t2,hostpn(p3)	;Save it at the HCHAD address index
+
+	ret
+>
 	SUBTTL Host File Routines -- Read SYSTEM:HOSTS.TXT -- Error Handlers
 
 ;Error handlers for HSTIN0.
@@ -1433,7 +1524,15 @@ RDNHU2:	ILDB T2,P4		;Load a character
 ;Check if legal terminator (period).  If terminator is a dot and more octets to
 ;get, loop for more of them.  If non-dot terminator, make sure 4 octets read.
 
-RDNHU3:	EXCH T3,T1		;Get octets read so far
+RDNHU3:
+ifn CHAOS,<
+	caie t2,"C"
+	ifskp.
+	 call chadp		;Is it a Chaosnet address?
+	 ret			;Yes, return with T1/ addr in UNternet fmt
+	endif.
+>
+	EXCH T3,T1		;Get octets read so far
 	LSH T3,^D8		;Shift over by one octet
 	ADDM T3,T1		;Add in new part of octet
 	CAIN T2,"."		;[9156] Was the terminator a dot?
@@ -1441,6 +1540,72 @@ RDNHU3:	EXCH T3,T1		;Get octets read so far
 	JUMPN T4,RDHNE2		;[9156] Error if four octets not read
 	MOVEM T2,TERM		;Save terminator for later check
 	RET			;And return
+
+ifn CHAOS,<
+;; Test if it is "CHAOS ooooo".
+;; Call:
+;; T2/ first char (C)
+;; P4/ bp to text to test, after the first char
+;; Return:
+;; +1: if success (otherwise error is signalled)
+;;  T1/ address in UNternet format, or 0 for failure
+;;  P4/ updated bp
+;; TERM/ terminating character
+chadp:	saveac <t2,t3,t4>
+	move t3,[point 7,[asciz "HAOS"]]
+	do.
+	 ildb t2,p4		;Get next byte of input
+	 cail t2,"A"+40		;Lowercase?
+	  subi t2,40		; Make it upper
+	 ildb t4,t3		;Get next of match
+	 jumpe t4,endlp.	;End of match text?
+	 came t2,t4		;Matching char?
+	  jrst chadpz		;Mismatch
+	 loop.
+	od.
+	;; "HAOS" matched, skip spaces/tabs and read octal number
+	do.
+	ildb t2,p4
+	caie t2,.chtab
+	 cain t2," "
+	  loop.
+	od.
+	;; Accumulate an octal value
+	setz t1,
+	do.
+	 cail t2,"0"
+	  caile t2,"7"
+	   exit.		;Not an octal digit
+	 lsh t1,3		;Shift over
+	 addi t1,-"0"(t2)	;And add this digit
+	 ildb t2,p4
+	 loop.
+	od.
+	;; Skip trailing space/tabs
+	do.
+	caie t2,.chtab
+	 cain t2," "
+	 ifnsk.
+	  ildb t2,p4
+	  loop.
+	 endif.
+	od.
+	movem t2,term		;Save non-digit, non-whitespace terminator
+	skipe t1		;Range check value
+	 caile t1,177777	;gt 0, le 2^16
+	  jrst chadpy
+	caige t1,400		;Check that subnet part is non-0
+	 jrst chadpy
+	move t2,t1
+	andi t2,377		;Check host part is non-0
+	jumpe t2,chadpy
+	txo t1,ne%unt!<7_^d24>	;Set UNternet bit and Chaos network
+	ret			;All OK!
+chadpy:	jsp t1,hfiler
+	asciz /%Bad CHAOS host address in /
+chadpz:	jsp t1,hfiler
+	asciz /%Bad address keyword in /
+>
 	SUBTTL Host File Routines -- File Reading -- Error Handlers
 
 ;Error handlers for host file reading subroutines.
@@ -2315,6 +2480,11 @@ GTHSXX:	MOVX T4,HS%NCK		;SET THE NICKNAME FLAG
 	IOR T4,HSTSTS(P2)	;[9157] Yes, return status bits plus nickname 
 	UMOVEM T4,4		;Return host status to user
 	MOVE T3,HOSTNN(P2)	;[9157] Load the host number
+ifn CHAOS,<
+	txne t3,ne%unt		;UNternet Chaos?
+				; (Should also check that the network part is 7)
+	 hrrzs t3		;Just return the Chaos part
+>
 	UMOVEM T3,3		;Return host number to user
 	RETSKP			;[9108] Skip return 
 	SUBTTL GTHST% JSYS -- Common routines --  Host address to host name routine
@@ -2364,24 +2534,38 @@ GTHNT0:	CALL HSTHSH		;[9156] (T1/T1,T2) Get its index
 ;from GTHSTR, GTHDPN, and GTHDAA.  Copies string from byte pointer in user 2
 ;into STKVAR.  If host name is not in tables or cannot be used it makes a DNS
 ;request and then looks again for the host name.
+;       T3/ class: 0 for CL.IN, or CL.CH==3 [Chaos]
 ;Returns +1 if host name not found
 ;	T1/ error code
 ;Returns +2 if host found and TTL ok
 ;	P1/ host name index
 ;	P2/ host status index
 
-GTHSTN:	STKVAR <<GTHSBF,GTHSBL>> ;[9156] Make place to build strings
+GTHSTN:
+ife CHAOS,<
+	STKVAR <<GTHSBF,GTHSBL>> ;[9156] Make place to build strings
+>
+ifn CHAOS,<
+	STKVAR <<GTHSBF,GTHSBL>,QCL> ;Make place to build strings, and query class
+	movem t3,qcl		;Save class
+>
 	MOVEI T3,GTHSBF		;[9156] Point to buffer
 	HRLI T3,(POINT 7)	;[9156]  with a byte pointer
 	MOVEM T3,P3		;[9156] Save that pointer
 	CALL GTHSIN		;[9156] (T3/T1,T3) Get string from user
 	 RETBAD()		;[9156] Return error in T1
+ifn CHAOS,<
+	move t3,qcl		;Get class again
+>
 	CALL GTHST1		;[9156] (P3/T1,P1,P2) Try to find that host
 	 SKIPA T1,P3		;[9156] Not (yet) found, reload pointer to name
 	RETSKP			;[9156] Return with P1 and P2 set
 	CALL DNSSTN		;[9156] (T1/T1) Try the server
 	 RETBAD()		;[9156] It didn't work, return badness to user
 	MOVE T1,P3		;[9156] Point to the string again
+ifn CHAOS,<
+	move t3,qcl
+>
 	CALL GTHST2		;[9156] (P3/T1,P1,P2) Try it again
 	 RETBAD()		;[9156] Return error in T1
 	RETSKP			;[9156] Return with P1 and T1 or P2 set up
@@ -2396,6 +2580,7 @@ GTHSTN:	STKVAR <<GTHSBF,GTHSBL>> ;[9156] Make place to build strings
 ;"b.c.b.a.IN-ADDR.ARPA" PTR RR in which case it can't be trusted for the host
 ;name to host number translation.  If NS%INA is not set it checks the TTL of
 ;the entry.  Call with
+;       T3/ class: 0 for CL.IN, or CL.CH==3 [Chaos]
 ;	P3/ pointer to host name to search for
 ;Returns +1 if host name not found or from IN-ADDR.ARPA or had expired TTL with
 ;	T1/ error code	
@@ -2406,7 +2591,13 @@ GTHSTN:	STKVAR <<GTHSBF,GTHSBL>> ;[9156] Make place to build strings
 GTHST1:	MOVE T1,P3		;[9156] Copy pointer to host name T1
 	CALL HSTLUK		;[9156] (T1/T2,T4) Try to find that one
 	JUMPN T2,GTHST3		;[9156] We found it
+ifn CHAOS,<
+	push p,t3
+>
 	CALL GTHST6		;[9156] (P3/) Possibly convert nam to nam.dom
+ifn CHAOS,<
+	pop p,t3
+>
 
 GTHST2:	MOVE T1,P3		;[9156] Reload pointer to that string
 	CALL HSTLUK		;[9156] (T1/T2,T4) Try it again
@@ -2603,10 +2794,27 @@ GTHIDX:	MOVN T1,MHOSTS		;GET NUMBER OF HOST NAMES IN USE
 ;	AC4/ host status
 
 GTHNUM:	TXNN T1,GH%QCL		;[9156] Is the class bit set?
+ife CHAOS,<
 	IFSKP.			;[9156] It is set
 	  CAIE T4,CL.IN		;[9156] Is it internet class?
 	  RETBAD(GTHSX6)	;[9156] Return "Invalid class for function"
 	ENDIF.			;[9156] End of GTDOM compatibility check
+>
+ifn CHAOS,<
+	IFSKP.
+	 caie t4,cl.in
+	 ifskp.
+	  setz t4,
+	 else.
+	  caie t4,cl.ch
+	   RETBAD(GTHSX6)	;[9156] Return "Invalid class for function"
+	  hrli t3,(ne%unt!<7_^d24>)	;Make it UNternet format
+	 endif.
+	ELSE.
+	 setz t4,
+	ENDIF.
+	move t3,t4		;Set up for GTHNTS
+>
 	MOVE T1,T3		;GET HOST NUMBER
 	CALL GTHNTS		;(T1/T1,P1,P2) Convert number to string
 	 RETBAD (GTHSX2)	;[9156] Return "Unknown host number" error
@@ -2627,10 +2835,25 @@ GTHNUM:	TXNN T1,GH%QCL		;[9156] Is the class bit set?
 ;	AC4/ host status
 
 GTHSTR:	TXNN T1,GH%QCL		;[9156] Is the class bit set?
+ifn CHAOS,<
+	IFSKP.
+	 caie t3,cl.in
+	 ifskp.
+	  setz t3,		;CL.IN default value
+	 else.
+	  caie t3,cl.ch		;CL.CH is OK
+	   RETBAD(GTHSX6)
+	 endif.
+	ELSE.
+	 setz t3,		;Default zero
+	ENDIF.
+>
+ife CHAOS,<
 	IFSKP.			;[9156] It is set
 	  CAIE T3,CL.IN		;[9156] Is it internet class?
 	  RETBAD(GTHSX6)	;[9156] Return "Invalid class for function"
 	ENDIF.			;[9156] End of GTDOM compatibility check
+>
 	CALL GTHSTN		;[9156] (/T1,P1,P2) Convert string to number
 	 RETBAD (GTHSX3)	;[9156] Return "Unknown host name" error 
 	CALLRET GTHSXX		;[9156] (P1,P2/) Return status to user
@@ -2648,6 +2871,13 @@ GTHSTR:	TXNN T1,GH%QCL		;[9156] Is the class bit set?
 ;	AC4/ host status
 
 GTHHNN:	MOVE T1,T3		;GET HOST NUMBER
+ifn CHAOS,<
+	;; @@@@ No flags in AC1, just assume that
+	;; @@@@ a 16-bit addr should be made to UNternet format.
+	ldb t3,[point 16,t3,16]
+	skipn t3
+	 txo t1,ne%unt!<7_^d24>
+>
 	CALL GTHNTS		;(T1/T1,P1,P2) Convert number to index
 	 RETBAD (GTHSX2)	;[9156] Return "Unknown host number" error
 	CALLRET GTHSXX		;[9156] (P1,P2/) Return status to user
@@ -2769,10 +2999,25 @@ GTHLA3:		  		; NCT Chasing loop
 ;Classes other than Internet are not allowed
 
 GTHDPN:	TXNN T1,GH%QCL		;[9156] Check for class bit
+ifn CHAOS,<
+	IFSKP.
+	 caie t3,cl.in
+	 ifskp.
+	  setz t3,		;CL.IN default value
+	 else.
+	  caie t3,cl.ch		;CL.CH is OK
+	   RETBAD(GTHSX6)
+	 endif.
+	ELSE.
+	 setz t3,		;Default zero
+	ENDIF.
+>
+ife CHAOS,<
 	IFSKP.			;[9156] It is set
 	  CAIE T3,CL.IN		;[9156] Is it internet class?
 	  RETBAD(GTHSX6)	;[9156] Return "Invalid class for function"
 	ENDIF.			;[9156] End of GTDOM compatibility check
+>
 
 	CALL GTHSTN		;[9156] (/T1,P1,P2) Convert string to number
 	 RETBAD()		;[9156] Return error in T1
@@ -2970,10 +3215,26 @@ IFN PANDASW,<	;[4]
 ;Classes other than Internet are not allowed
 
 GTHDAA:	TXNN T1,GH%QCL		;[9156] Is the class bit set?
+ifn CHAOS,<
+	IFSKP.
+	 caie t4,cl.in
+	 ifskp.
+	  setz t4,		;CL.IN default value
+	 else.
+	  caie t4,cl.ch		;CL.CH is OK
+	   RETBAD(GTHSX6)
+	 endif.
+	ELSE.
+	 setz t4,		;Default zero
+	ENDIF.
+	move t3,t4		;Set up for GTHSTN
+>
+ife CHAOS,<
 	IFSKP.			;[9156] It is set
 	  CAIE T4,CL.IN		;[9156] Is it internet class?
 	  RETBAD(GTHSX6)	;[9156] Return "Invalid class for function"
 	ENDIF.			;[9156] End of GTDOM compatibility check
+>
 
 	CALL GTHSTN		;[9156] (/T1,P1,P2) Try to find that host name
 	 RETBAD()		;[9156] Return error in T1
@@ -3265,6 +3526,7 @@ IFN PANDASW,<	;[5]
 
 ;HSTLUK - Lookup host names
 ;Call with T1/ pointer to string of name or number in monitor space
+;       T3/ class: 0 for CL.IN, or CL.CH==3 [Chaos]
 ;Returns+1 always with
 ;	T1/ updated pointer to host string
 ;	T2/ host name index or 0 if host not found (or host number given)
@@ -3291,8 +3553,24 @@ HSTLKI:	HRLZ P2,MHOSTS		;[9156] Scan the table
 	PUTSEC P1,INTSEC	;[9156] In correct section today if you please
 
 ;[9156] Loop to check each host in the host table and see if it matches.
+ifn CHAOS,<
+	movem t3,p4		;Save class
+>
 
 HSTLK0:	MOVE T1,P3		;[9156] Point to source string for comparison
+ifn CHAOS,<
+	;; Check that the HOSTN entry type matches the request
+	load t4,hstunt,(p1)	;What type of entry is this?
+	skipe t4
+	ifskp.			;INternet
+	 jumpe p4,hstlkz	;Wanted that, OK
+	 aoja p1,hstlk2		;Else treat as no match
+	else.
+	 caie p4,cl.ch		;UNternet, so see that class is Chaos
+	  aoja p1,hstlk2	;Nope, so treat as no match
+	endif.
+hstlkz:
+>
 	LOAD T2,HSTNMP,(P1)	;[9156] Load a name pointer offset to the data
 	ADD T2,[<OWGP. 7>+<INTSEC,,HSTNAM>] ;[9156] Make a byte pointer to name
 	CALL SMATCH		;[9156] (T1,T2/T1,T2,T3,T4) Strings match?
@@ -3495,9 +3773,15 @@ NETMSK:	MOVE T2,T1		;[9156] Copy the address over for ANDing
 ;Returns +1 if table is full in some way, some information may have made it
 ;Returns +2 if all information added to tables,
 ;	T1/ host status index
+; 	T2/ Chaos address found, if any
 
 ADDHOS:	SAVEP			;[9156] Save the Ps
+ife CHAOS,<
 	STKVAR <HFIRST,HBEST,HGOOD,HSTS,HNAML>	;[9156] Space on the stack too
+>
+ifn CHAOS,<
+	STKVAR <HFIRST,HBEST,HGOOD,HSTS,HNAML,HCHAD>	;[9156] Space on the stack too
+>
 
 	MOVEM T1,HNAML		;[9156] Store the NAMLST address
 	MOVEM T2,P2		;[9156] Store the NUMLST address
@@ -3553,6 +3837,9 @@ ADDHOS:	SAVEP			;[9156] Save the Ps
 	SETZM HBEST		;[9156] Initially no best index
 	SETZM HGOOD		;[9156]  nor a good index
 	SETZM HFIRST		;[9156]   nor a first one either
+ifn CHAOS,<
+	setzm hchad		;No Chaos address yet
+>
 	MOVN T1,(P2)		;[9156] Load the negative number of hosts
 	HRL P2,T1		;[9156] Make -number,,address of first one
 
@@ -3568,13 +3855,32 @@ ADDHO1:	MOVE T1,1(P2)		;[9156] Load that internet address please
 	  IORM T4,HOSTN(T3)	;[9156] Set nickname flag for older entry
 	ENDIF.			;[9156] End of old HOSTPN entry fixup code
 	MOVEM P3,HOSTPN(T2)	;[9156] Save pointer to name in HOSTPN table
+ifn CHAOS,<
+	txne t1,ne%unt		;Is it a Chaosnet UNternel address?
+				; (Should also check that the network part is 7)
+	 movem t2,hchad		;Save the hash
+>
 	CALL LCLHST		;[9156] (T1/) Is this host number one of ours?
 	 TDZA T3,T3		;[9156] This address is not one of ours, skip
 	MOVX T3,HS%UP!HS%SLF!HS%VAL!.HST20 ;[9156] It is me, I'm up, valid 
 	IOR T3,HSTS		;[9156] Load the op sys type and flags
 	MOVEM T3,HSTSTS(T2)	;[9157] Store operating system type
+ifn CHAOS,<
+	;; If we saved a Chaos addr as HFIRST and now find an IP,
+	;; use that as HFIRST instead, to make post-processing simpler.
+	skipn t3,hfirst
+	ifskp.
+	 move t3,hostnn(t3)	;Get the actual address
+	 txne t3,ne%unt		;Check if we had UN (and if so update HFIRST)
+	  movem t2,hfirst	;It was UN, so update it
+	else.
+	 movem t2,hfirst	;We had no HFIRST, save this
+	endif.
+>
+ife CHAOS,<
 	SKIPN HFIRST		;[9156] Do we have a first guess yet?
 	MOVEM T2,HFIRST		;[9156] Save first one, last guess
+>
 	CAMN T1,PRFADR		;[9177] Our preferred adr is always our best
 	JRST ADDHO2		;[9156] Set it as the best address possible
 	SKIPE HBEST		;[9156] Have a best address yet?
@@ -3635,6 +3941,9 @@ ADDHO7:	MOVM P3,MHOSTS		;[9156] Load +ive number of hosts
 	IORM T4,HOSTN(P3)	;[9156] Nope, so set nickname flag
 	AOBJN P2,ADDHO7		;[9156] Loop for all of the hosts
 
+ifn CHAOS,<
+	move t2,hchad		;Return HCHAD, if any
+>
 	RETSKP			;[9156] Skip return, T1/ host status index
 
 ;[9156] Here if it appears that the HOSTN table would be full with this entry.
@@ -3931,6 +4240,11 @@ DEFSTR(HDARC,PKTELI+.UDPDA+2,31,16) ;Number of entries in addl rec sect
 
 	CL.IN==^D1		;The Internet
 ;	CL.CS==^D2		;The computer science network (CSNET)
+ifn CHAOS,<
+	CL.CH==^d3		;The Chaosnet
+
+	ne%unt==1b3		;UNternet marker
+>
 
 ;[9156] QCLASS values
 ;
@@ -5126,7 +5440,14 @@ DNSPHI:	LOAD Q3,HDANC,(PKT)	;[9156] Number of entries in answer section
 
 DNSNAM:	MOVEI T1,NAMBUF		;[9156] Point to temp buffer place
 	HRLI T1,(POINT 7)	;[9156] Make a pointer to it
+ifn CHAOS,<
+	push p,t3
+	setz t3,
+>
 	CALL HSTLUK		;[9156] (T1/T2,T4) Look for that host name
+ifn CHAOS,<
+	pop p,t3
+>
 	IFE. T2			;[9156] If the name was not found
 	  XMOVEI T2,NAMBUF	;[9156] Point to temporary buffer area
 	  SKIPE T1,NAMBWC	;[9156] Load the length of this string

@@ -2914,14 +2914,22 @@ ife 0,<	;; First try numeric, then GTDOM%
 	  retskp		;Got a number, done
 	 endif.
 	endif.
-	movx t1,.gthsn!gd%qcl
+	;; First try GTHST to check HOSTS.TXT
+	movx t1,.gthsn!gh%qcl
 	move t2,ohstnt
-	movei t3,3		;qc.ch		;Chaos class
-	gtdom%
+	movei t3,3		;CL.CH (Chaos)
+	gthst%
 	ifjer.
-	 bug.(inf,hstnz,chaos,soft,<HSTNAM call to GTDOM failed>,<<t1,err>>)
-	 setz t1,		;Sorry
-	 ret
+	 ;; Failed, try the DNS
+	 movx t1,.gthsn!gd%qcl
+	 move t2,ohstnt
+	 movei t3,3		;qc.ch		;Chaos class
+	 gtdom%
+	 ifjer.
+	  bug.(inf,hstnz,chaos,soft,<HSTNAM call to GTDOM failed>,<<t1,err>>)
+	  setz t1,		;Sorry
+	  ret
+	 endif.
 	endif.
 	move t1,t3
 	retskp			;Success
@@ -3009,11 +3017,12 @@ HSTNM2:	ILDB T3,T2
 	JRST HSTNM2
 
 ;HOST NUMBER INTO HOST, NUMBER IN T2, RETURN SKIP IN T1 IF FOUND
-NAMHST:	SAVEQ
-	EA.ENT			;XX3026 Enter section 1 for extended host table
-ife 0,<	;; Just use GTDOM%
-	saveac <t2,t3,t4>
+NAMHST:
 repeat 1,<
+	p1==10			;Purged by defac far above
+	p2==11
+	p3==12
+	saveac <t2,t3,t4,p1,p2,p3>
 	;; But first check if it's just me
 	came t2,mychad
 	ifskp.
@@ -3027,21 +3036,32 @@ repeat 1,<
 	 pop p,t1		;Get orig dest bp
 	 retskp			;Success
 	endif.
->
-	push p,t1		;Save dest bp
-	move t3,t2		;Host number
-	move t2,t1		;Dest bp
-	movx t1,.gthns!gd%qcl
-	movei t4,3		;qc.ch		;Chaos class
-	gtdom%
+	movem t1,p1		;Save dest bp
+	movem t2,p2		; and address
+	;; First use GTHST to check HOSTS.TXT
+	movx t1,.gthns!gh%qcl
+	move t2,p1		;Dest bp
+	move t3,p2		;Address
+	movei t4,3		;CL.CH (Chaos)
+	gthst%
 	ifjer.
-	 bug.(inf,namhsz,chaos,soft,<NAMHST call to GTDOM failed>,<<t1,err>>)
-	 ret			;Fail
+	 ;; Failed, try DNS
+	 move t3,p2		;Host number
+	 move t2,p1		;Dest bp
+	 movx t1,.gthns!gd%qcl
+	 movei t4,3		;qc.ch		;Chaos class
+	 gtdom%
+	 ifjer.
+	  bug.(inf,namhsz,chaos,soft,<NAMHST call to GTDOM failed>,<<t1,err>>)
+	  ret			;Fail
+	 endif.
 	endif.
-	pop p,t1		;Get orig dest bp
+	move t1,p1		;Get orig dest bp
 	retskp
 >
 ifn 0,<	;; Old code
+	SAVEQ
+	EA.ENT			;XX3026 Enter section 1 for extended host table
 	MOVE T1,CHANET
 	DPB T1,HNMPNW		;SET NETWORK AS CHAOS
 	PUSH P,T2		;SAVE HOST ADDRESS

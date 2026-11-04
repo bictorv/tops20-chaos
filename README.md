@@ -45,9 +45,20 @@ CHAOS-ADDRESS:3412,CHAOS-IP-GATEWAY:10.0.1.1
 
 The Chaosnet host name is initialized from the IP host name, using `GTHST%`, so they need to match, of course. 
 
+### SYSTEM:HOSTS.TXT
+
+You can add CHAOS addresses to SYSTEM:HOSTS.TXT to avoid the awkwardnessess of getting the DNS resolver working (see below). 
+
+An example:
+
+```
+HOST : ROUTER.CHAOSNET.NET : 92.34.149.133, 74.207.253.202, CHAOS 3040, CHAOS 3162 : UNIX : UNIX : :
+HOST : BV20.VICTOR.SE : CHAOS 3424 : KLH-10 : TOPS-20 : :
+```
+
 ### DNS resolver
 
-To make parsing of Chaosnet host names work, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but *note that it does not handle the INternet class* - **SEE [BELOW](#resolv)**). Use the `DSERVE` directive in the config. 
+To use DNS for parsing Chaosnet host names, you need to edit `DOMAIN:RESOLV.CONFIG` to use a DNS server which has CHaosnet class data, such as the `DNS.Chaosnet.NET` host (look up its IPv4 address and use it, but *note that it does not handle the INternet class* - **SEE [BELOW](#resolv)**). Use the `DSERVE` directive in the config. 
 
 You may also want to include the domain `Chaosnet.NET.` in your `RSEARCH` directives, to get shorthand addresses to all ITS hosts on Chaosnet.
 
@@ -60,8 +71,6 @@ RSEARCH .                 ;Try fully qualified first
 RSEARCH my.local.dom.ain. ; then my local domain
 RSEARCH Chaosnet.NET.     ; then Chaosnet.NET
 ```
-
-(Note that HOSTS.TXT is not used for Chaosnet host names, except for initializing the local host name using `GTHST%`, see above.)
 
 ### Chaosnet bridge
 
@@ -85,7 +94,7 @@ Both simple RFC-ANS protocols and stream protocols seem to work.
 
 `GTDOM%` handles the CHaosnet class (3). (There are not yet MACRO symbols for the classes.)
 
-`CHANM%` uses `GTDOM%`, so works. See [documentation](doc/CHANM.md).
+`CHANM%` uses `GTHST%` and `GTDOM%`, so works. See [documentation](doc/CHANM.md).
 
 See [further documentation on source code edits here](doc/monitor-edits.md).
 
@@ -93,6 +102,8 @@ See [further documentation on source code edits here](doc/monitor-edits.md).
 Surprisingly, the `TELNET` and `MMAILR` programs of the Panda distribution already handled Chaosnet! Both have been fixed to change the priority order between TCP/Internet and Chaosnet, to prefer Chaosnet. A new `SMTCHA` program which implements an SMTP server for Chaosnet has been added (see below).
 
 Sending and receiving "SEND" messages and mail works, if you install the modified MM mailsystem (see below) and the server for the `SEND` contact (see below). 
+
+It works together with DECnet (with `decnet=true` on `devdef ni0` config in klh10). It has also been tested with [HECnet](http://mim.softjar.se/hecnet.htm)/[PyDECnet](https://github.com/pkoning2/pydecnet) too (using `vde_switch`/`vde_plug2tap`, see https://github.com/virtualsquare/vde-2 or you linux package manager.)
 
 ### Server programs
 
@@ -137,7 +148,7 @@ Some notes in addition to  [the Chaosnet report](https://chaosnet.net/amber.html
 
 ### New JSYSes
 
-- [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTDOM%`.)
+- [CHANM%](doc/CHANM.md) (JSYS 460), to obtain information about Chaosnet hosts. (You can also use `GTHST%` and `GTDOM%`.)
 
 Some supplemental documentation for JSYSes with extended functionality: 
 
@@ -162,12 +173,12 @@ The following new JSYSes are only enabled with the `VTSSW` compile-time setting 
 
 ## What should be done later
 
-- Make `CHANM%` work without DNS, ideally using `SYSTEM:HOSTS.TXT` or less ideally using a separate hosts file.
 - SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
-- DECnet now is enabled, and seems to work (with `decnet=true` on `devdef ni0` config in klh10). It has also been tested with [HECnet](http://mim.softjar.se/hecnet.htm)/[PyDECnet](https://github.com/pkoning2/pydecnet) too (using `vde_switch`/`vde_plug2tap`, see https://github.com/virtualsquare/vde-2 or you linux package manager.)
 - Summarise what changes were done to the original. (See [monitor-edits](doc/monitor-edits.md) and [exec-edits](doc/exec-edits.md).)
 
 ### RESOLV
+
+*(Note that SYSTEM:HOSTS.TXT can now be used if you find what is described below too hairy.)*
 
 RESOLV should ideally be able to use separate DNS servers for IN and CH classes (but it doesn't), since CH can often be served by DNS servers which don't provide IN to just anyone  (e.g. `DNS.Chaosnet.NET`), and IN servers in general have no clue about CH. 
 

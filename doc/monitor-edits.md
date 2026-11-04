@@ -11,6 +11,9 @@ A recent fix was to introduce VTSSW (set in SITE.MAC), default 0, to disable all
 
 TVTDEF.MAC contains definitions for NVT code, separated from TVTSRV so TTCHDV can share it. 
 
+## ANAUNV.MAC
+Add name for previously unused flag in HOSTN table. It now marks an entry for a Chaosnet host (see MNETDV.MAC).
+
 ## COMND.MAC
 Make RDCBP global, for use in CHAOS.MAC.
 
@@ -51,6 +54,8 @@ Add support for Chaosnet NVTs, and call CHAINI (cf CHAOS.MAC) to initialize Chao
 Read SYSTEM:CHAOSNET.ADDRESS to initialize my address, the Chaos-to-IP gateway, and the Chaosnet address domain name (default CH-ADDR.NET, cf STG.MAC).
 
 Handle Chaosnet NVTs in ATNVT%.
+
+Handle CHAOS addressess in SYSTEM:HOSTS.TXT.
 
 ## MONSYM.MAC
 
