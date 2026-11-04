@@ -10,6 +10,9 @@ for x in rel exe bin unv log tmp; do
     find chaos -name "*.$x" -exec rm {} \; ;
 done
 
+# Auto-save files
+find chaos -name '\[save\].*' -exec rm {} \;
+
 # Output from monitor generation
 rm -f chaos/monitor-sources/{parnew.mac,lnknew.ccl,bugstrings.txt}
 rm -f chaos/vts/monitor-sources/{parnew.mac,lnknew.ccl,bugstrings.txt}
