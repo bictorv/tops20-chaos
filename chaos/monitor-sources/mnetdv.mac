@@ -588,7 +588,8 @@ NETPR2:	ILDB T2,NPRBP		; get a byte
 ;Call T1/ destination pointer, T2/ source pointer (-1,,addr)
 ;Returns +1 always, T1 and T2 updated, T3/ 0
 
-MNTSTO:	TLC T2,-1		;Is the source
+MNTSTO::			;[BV: This must exist in numerous copies in the sources?]
+	TLC T2,-1		;Is the source
 	TLCN T2,-1		; minus one?
 	HRLI T2,(POINT 7)	;Yes, make a byte pointer
 MNTST1:	ILDB T3,T2		;Get a source byte
@@ -1527,7 +1528,8 @@ RDNHU2:	ILDB T2,P4		;Load a character
 RDNHU3:
 ifn CHAOS,<
 	caie t2,"C"
-	ifskp.
+	 cain t2,"c"
+	ifnsk.
 	 call chadp		;Is it a Chaosnet address?
 	 ret			;Yes, return with T1/ addr in UNternet fmt
 	endif.
@@ -2799,23 +2801,24 @@ ife CHAOS,<
 	  CAIE T4,CL.IN		;[9156] Is it internet class?
 	  RETBAD(GTHSX6)	;[9156] Return "Invalid class for function"
 	ENDIF.			;[9156] End of GTDOM compatibility check
+	MOVE T1,T3		;GET HOST NUMBER
 >
 ifn CHAOS,<
 	IFSKP.
 	 caie t4,cl.in
 	 ifskp.
-	  setz t4,
+	  setz t4,		;Internet
 	 else.
 	  caie t4,cl.ch
 	   RETBAD(GTHSX6)	;[9156] Return "Invalid class for function"
 	  hrli t3,(ne%unt!<7_^d24>)	;Make it UNternet format
 	 endif.
 	ELSE.
-	 setz t4,
+	 setz t4,		;Default Internet
 	ENDIF.
+	move t1,t3		;Get host number
 	move t3,t4		;Set up for GTHNTS
 >
-	MOVE T1,T3		;GET HOST NUMBER
 	CALL GTHNTS		;(T1/T1,P1,P2) Convert number to string
 	 RETBAD (GTHSX2)	;[9156] Return "Unknown host number" error
 	CALLRET GTHTUS		;[8975] (P1,P2/) Write to user space and ret
@@ -3698,6 +3701,9 @@ NUMOPS==.-OPSTAB
 
 CVNHST::CAMN T1,[-1]		;If -1 use local host number
 	MOVE T1,PRFADR		;Default local host
+ifn CHAOS,<
+	txnn t1,ne%unt		;Don't mask if UNternet
+>
 	AND T1,[HSTMSK]		;Cut down to size
 	TLNE T1,37700		;Any network number stuff?
 	RET			;Yes, so return

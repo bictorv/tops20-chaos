@@ -41,6 +41,8 @@ For Chaosnet systems only.
 	Returns:
 	- AC2: Updated destination BP
 
+Note that `.CHNSN` and `.CHNNS` are implemented by first trying the corresponding function codes with `GTHST%` (using `GH%QCL` and class 3 (Chaosnet)), and if that fails, with `GTDOM%` (using `GD%QCL` and class 3 (Chaosnet)).
+
 ## CHANM% error mnemonics:
 
 <dl>
