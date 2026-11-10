@@ -1,0 +1,83 @@
+;;; Host table for Global Chaosnet, including IP addresses.
+;;; Generated on 2026-11-10 using https://github.com/Chaosnet/config-files-from-dns
+;; based on serial 2026111000 of CH-ADDR.NET.
+;; and on serial 2026100800 of ThePorch.COM.
+;; and on serial 2025110601 of Bogodyne.COM.
+;; and on serial 2025021200 of 9grid.NET.
+;; and on serial 2025021200 of Sanyal.ORG.
+;; and on serial 2026032400 of Swenson.ORG.
+;; and on serial 2025021200 of AMS.Chaosnet.NET.
+;; and on serial 2025021200 of dfUPDATE.SE.
+;; and on serial 2026051900 of Chaosnet.NET.
+;; and on serial 2025021200 of pdp10.se.
+;; and on serial 2025021200 of Z54.ORG.
+;; and on serial 2025021200 of N3UC.COM.
+;; and on serial 2025021201 of STUPI.COM.
+;; and on serial 2026111000 of Victor.SE.
+
+;; Hosts:
+HOST : 92.34.149.133, CHAOS 3443 : UP.dfUPDATE.SE, UP.Chaosnet.net, UP : KLH10 : ITS : :
+HOST : CHAOS 3424 : BV20.Victor.SE, BV20.Chaosnet.net, BV20 : KLH10 : TOPS-20 : :
+HOST : 92.34.149.133, CHAOS 3040, CHAOS 3401 : MX12.Victor.SE, HOSTAB.Chaosnet.net, MX-11.Chaosnet.net, TIME.Chaosnet.net, DNS.Chaosnet.net, MX-12.Victor.SE, HOSTAB, MX-11, TIME, DNS : UNIX : UNIX : :
+HOST : CHAOS 3140 : Z2.Victor.SE, Z2.Chaosnet.net, Z2 : MACBOOK : UNIX : :
+HOST : CHAOS 3403 : CDR.Victor.SE, CDR.Chaosnet.net, CDR : CADR : LISPM : :
+HOST : CHAOS 3405 : BV.Victor.SE, BV.Chaosnet.net, BV : KLH10 : ITS : :
+HOST : CHAOS 13430, CHAOS 3430 : Lambda-X.Victor.SE, LAMA.Victor.SE, LX.Victor.SE : LAMBDA : LISPM : :
+HOST : CHAOS 13421 : Gee.Victor.SE : GENERA : LISPM : :
+HOST : CHAOS 3442 : Pooh.Victor.SE, Pu.Victor.SE : PDP10 : TOPS-20 : :
+HOST : CHAOS 3410 : PDPi.Victor.SE : UNIX : UNIX : :
+HOST : CHAOS 3432 : Puck.Victor.SE : MACMINI : UNIX : :
+HOST : CHAOS 26001, CHAOS 3254 : chua.Z54.ORG : UNIX : UNIX : :
+HOST : CHAOS 26002 : mavi.Z54.ORG : OPENGENERA : LISPM : :
+HOST : CHAOS 26003 : alyaz.Z54.ORG : CADR : LISPM : :
+HOST : CHAOS 17401 : Vax1.Sanyal.ORG, chaos-vax1.Sanyal.ORG : VAX : UNIX : :
+HOST : CHAOS 17402 : Vax2.Sanyal.ORG, chaos-vax2.Sanyal.ORG : VAX : UNIX : :
+HOST : 193.122.191.142, CHAOS 17777, CHAOS 3201 : Sanyalnet.Sanyal.ORG : UNIX : UNIX : :
+HOST : CHAOS 5467 : EJS-LISPM-1.Swenson.ORG : CADR : LISPM : :
+HOST : CHAOS 5470 : EJS-LISPM-2.Swenson.ORG : CADR : LISPM : :
+HOST : 74.207.253.202, CHAOS 5402 : Chaos2.Swenson.ORG : UNIX : UNIX : :
+HOST : CHAOS 5471 : EJS-LISPM-3.Swenson.ORG : CADR : LISPM : :
+HOST : CHAOS 5403 : Chaos3.Swenson.ORG : UNIX : UNIX : :
+HOST : CHAOS 5472 : EJS-LISPM-4.Swenson.ORG : CADR : LISPM : :
+HOST : CHAOS 5473 : EJS-LISPM-5.Swenson.ORG : CADR : LISPM : :
+HOST : CHAOS 5475 : GHM.Swenson.ORG, GHM.Chaosnet.net, GHM : DPS8 : MULTICS : :
+HOST : CHAOS 5462 : CADR.Swenson.ORG : CADR : LISPM : :
+HOST : CHAOS 5463 : SERVER.Swenson.ORG : UNIX : UNIX : :
+HOST : CHAOS 5464 : EXA-ITS.Swenson.ORG, EXA.Swenson.ORG : SIMH : ITS : :
+HOST : CHAOS 5465 : EXL-ITS.Swenson.ORG, EXL.Swenson.ORG : SIMH : ITS : :
+HOST : 74.207.253.202, CHAOS 5460 : ES-ITS.Swenson.ORG, ES.Chaosnet.net, ES.Swenson.ORG, ES : KLH10 : ITS : :
+HOST : CHAOS 5466 : EXS-ITS.Swenson.ORG, EXS.Swenson.ORG : SIMH : ITS : :
+HOST : 74.207.253.202, CHAOS 5461 : EX-ITS.Swenson.ORG, EX.Chaosnet.net, EX.Swenson.ORG, EX : KLH10 : ITS : :
+HOST : CHAOS 5474 : GHM-TEST.Swenson.ORG : DPS8 : MULTICS : :
+HOST : CHAOS 5404 : Barry-Bridge.Swenson.ORG : UNIX : UNIX : :
+HOST : 74.207.253.202, CHAOS 5401, CHAOS 3162 : Chaos.Swenson.ORG : UNIX : UNIX : :
+HOST : CHAOS 5476 : Barry.Swenson.ORG : DPS8 : MULTICS : :
+HOST : CHAOS 6111 : UC.N3UC.COM, UC.Chaosnet.net, UC : PDP-10 : ITS : :
+HOST : CHAOS 6113 : UD.N3UC.COM, UD.Chaosnet.net, UD : PDP-10 : ITS : :
+HOST : 138.88.224.53, CHAOS 6001, CHAOS 3214 : CHGW.N3UC.COM : UNIX : UNIX : :
+HOST : CHAOS 6033 : pi.N3UC.COM : UNIX : UNIX : :
+HOST : CHAOS 3111 : PL.STUPI.COM, PL.Chaosnet.net, PL : KLH10 : ITS : :
+HOST : CHAOS 4050 : BGD-11.Bogodyne.COM : PDP-11 : MINITS : :
+HOST : CHAOS 4020 : LISPM-A.Bogodyne.COM : LAMBDA : LISPM : :
+HOST : CHAOS 4021 : LISPM-B.Bogodyne.COM : LAMBDA : LISPM : :
+HOST : CHAOS 4012 : AMNESIAC.Bogodyne.COM, AMNESIA.Bogodyne.COM : LAMBDA : LISPM : :
+HOST : 198.199.189.136, CHAOS 4042 : SE.Bogodyne.COM, SE.Chaosnet.net, SE : DEC-2020 : ITS : :
+HOST : CHAOS 4041 : BGDFAX.Bogodyne.COM : PDP-11 : VMS : :
+HOST : CHAOS 4040 : BGDVAX.Bogodyne.COM : VAX : VMS : :
+HOST : 198.199.189.129, CHAOS 3124, CHAOS 4010 : BGD-Bridge.Bogodyne.COM : UNIX : UNIX : :
+HOST : CHAOS 4011 : Kendy.Bogodyne.COM :  :  : :
+HOST : 162.240.229.75, CHAOS 7401, CHAOS 3232 : chaos.ThePorch.COM : UNIX : UNIX : :
+HOST : 162.240.229.75, CHAOS 7402 : its.ThePorch.COM : PIDP-10 : ITS : :
+HOST : CHAOS 6401, CHAOS 3204 : gw9.9grid.NET : UNIX : UNIX : :
+HOST : CHAOS 6404 : CADR.9grid.NET : CADR : LISPM : :
+HOST : CHAOS 4401 : LISPM-1.AMS.Chaosnet.NET, CADR-1.AMS.Chaosnet.NET, CADR1.AMS.Chaosnet.NET, LM1.AMS.Chaosnet.NET : CADR : LISPM : :
+HOST : CHAOS 4402 : LISPM-2.AMS.Chaosnet.NET, CADR-2.AMS.Chaosnet.NET, CADR2.AMS.Chaosnet.NET, LM2.AMS.Chaosnet.NET : CADR : LISPM : :
+HOST : CHAOS 4405 : LAMBDA-A.AMS.Chaosnet.NET, LAM-A.AMS.Chaosnet.NET, LAMA.AMS.Chaosnet.NET : LAMBDA : LISPM : :
+HOST : CHAOS 4403, CHAOS 3123 : BRIDGE.AMS.Chaosnet.NET, BR.AMS.Chaosnet.NET : UNIX : UNIX : :
+HOST : CHAOS 4404 : FILECOMPUTER.AMS.Chaosnet.NET, FS.AMS.Chaosnet.NET, FC.AMS.Chaosnet.NET : UNIX : UNIX : :
+HOST : CHAOS 3412 : Amnesia, LMI-Amnesia.Chaosnet.net, LMI-Amnesia : LISPM : LISPM : :
+HOST : CHAOS 3224 : lain : UNIX : UNIX : :
+HOST : CHAOS 3116 : 4bsd.pdp10.se, prep.pdp10.se : VAX : UNIX : :
+HOST : 88.99.191.74, CHAOS 3150 : its.pdp10.se, NO.Chaosnet.net, TT.Chaosnet.net, TT.pdp10.se, no.pdp10.se, NO, TT : KA10 : ITS : :
+HOST : CHAOS 3037 : minits.pdp10.se, puma.pdp10.se : PDP-11 : MINITS : :
+HOST : 88.99.191.74, CHAOS 3036 : pdp10.se : UNIX : UNIX : :

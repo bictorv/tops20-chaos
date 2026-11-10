@@ -17,7 +17,9 @@ For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP enca
 
 ## Installation
 
-Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it. For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
+Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it (see e.g. "TOPS-20 TCP/IP INSTALLATION" in [klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L448)). 
+
+For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
 
 Then restore the tape file `chaos.tps` using `DUMPER`. (To read the tape under *nix, you can use `read20 -x -b -f chaos.tps` with read20 from [this version](https://github.com/brouhaha/tapeutils) of tapeutils.)
 
@@ -52,9 +54,13 @@ You can add CHAOS addresses to SYSTEM:HOSTS.TXT to avoid the awkwardnessess of g
 An example:
 
 ```
-HOST : ROUTER.CHAOSNET.NET : 92.34.149.133, 74.207.253.202, CHAOS 3040, CHAOS 3162 : UNIX : UNIX : :
-HOST : BV20.VICTOR.SE : CHAOS 3424 : KLH-10 : TOPS-20 : :
+HOST : 92.34.149.133, 74.207.253.202, CHAOS 3040, CHAOS 3162 : ROUTER.CHAOSNET.NET : UNIX : UNIX : :
+HOST : CHAOS 3424 : BV20.VICTOR.SE : KLH-10 : TOPS-20 : :
+HOST : CHAOS 177001 : BRIDGE : KLH-10 : ITS : :
+HOST : CHAOS 177002 : MYITS : KLH-10 : ITS : :
 ```
+
+A full host table for the [Global Chaosnet](https://chaosnet.net/global) can be found in [hosts.txt](hosts.txt).
 
 ### DNS resolver
 
@@ -210,5 +216,5 @@ Known things:
 	- This seems not to cause problems, but indicates some bug of course.
 - `BUGCHK IPIBLP` when lots of input coming in a connection.
 	- This was related to a Chaosnet window handling bug in the [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) but could still appear as the result of a DoS attack.
-- Filename parsing for `CHA:` only checks if the name *begins* with a digit and then uses that as address, so parsing "3com" will just return 3. (See `HSTN$1` in `CHAOS.MAC`).
+- If you set the Telnet Location by using the Telnet option, and then attach another job, the location is lost. This is because the location is set for the job at the terminal at the time it is set, and attaching changes the job, obviously. Would require a reasonably gross hack to fix, and it's easy to set the location again after attaching (by Telnet option or `TTYLOC`).
 - Here and there, 50 (decimal) is used as max host/domain name length.
