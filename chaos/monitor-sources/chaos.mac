@@ -597,6 +597,9 @@ IFN TNXFLG,<
 IFE ARPAF,<
 	CALL NVTINI		;CLEAR OUT NVT TABLES IF ARPANET WON'T DO IT
 >>
+ifn CHINET,<
+	call chimnm		;Init my Chaos host name
+>
 	MOVSI T1,(CR%CAP)	;CREATE LOCAL-ROUTING FORK
 	SETZ T2,
 	CFORK			;MAKE A JOB0 FORK
@@ -2073,66 +2076,10 @@ CHALCB:	BUG.(INF,CHATBF,CHAOS,SOFT,<Chaos background fork appears hung>,<<T2,WHA
 	JRST CHALC0
 >;IFGE NETDTE
 
-	SUBTTL CHAOS NETWORK FORK
-
-DEFINE WCALL (R) <		;;;FOR DEBUGGING: NOTE WHAT WE'RE DOING
-DEBUG,<	MOVEI T1,R
-	MOVEM T1,CHABFW
-	CALL R
->;DEBUG
-NODEB,<	CALL R >
->
-
-ifn chinet,<
-;; Chaosnet-over-IP arg block for ASNIQ%
-	extn <chiqb>
-comment |
-chiqb:	exp <.CHAFM>b31		;.IQPRV protocol number - Chaos
-	exp 0			;.IQFHV foreign host value
-	exp 0			;.IQSHV source host value
-	exp 0			;.IQPTV port values (local,,foreign)
-	exp 377b31		;.IQPRM protocol number mask
-	exp 0 ;^-17		;.IQFHM foreign host mask - any
-	exp 0 ;^-17		;.IQSHM source host mask - any
-	exp 0			;.IQPTM port value mask (Chaos is portless)
-	exp .IQLEN+1		;.IQLEN length of this block
-|
->
-
-CHSFRK:
-IFN TNXFLG,<
-	MOVSI 1,UMODF		;FAKE UP SLOW JSYS ENTRY
-	MOVEM 1,FPC		; ..
->;IFN TNXFLG
-IFN T20FLG,<
-	MOVX 1,USRCTX		;Set up context
-	MOVEM 1,FFL
->;IFN T20FLG
-	MCENTR
-	MOVE T1,FORKX		;SAVE OUR FORK INDEX
-	MOVEM T1,CHAFHN
-IFE BBNFLG,<
-ifn t20flg,<
-;	MOVX T1,JP%SYS+1	;SAY WE SHOULD ALWAYS STAY IN HIGHEST-PRIORITY
-;	MOVEM T1,JOBBIT		; QUEUE
->
-IFN BBNFLG,<
-	CALL SETSPQ		; Special Q us
->
-	MOVE T1,CHAON
-	MOVEM T1,CHAONL		;REMEMBER LAST VALUE OF CHAON
-	SETZM CHNPWT		;INITIALIZE -11 WEDGENESS TIMER
-	SETZM CHATIM		;CLEAR OUR CYCLE CLOCKS: BASIC CYCLE,
-	SETZM CHATM1		; TIMEOUT CYCLE
-	SETZM CHATM2		; RFC CHECK CYCLE
-	SETZM CHNGTM		; NEGOTIATION TIMEOUTS FOR NVT'S
-ife chinet,<
-	;; Old code, which might do some DTE stuff in addition to HOSTS2
-	CALL CHSINI		;BUILD OUR HOST TABLE FROM HOSTS2 NOW
->
-ifn chinet,<
-	;; Not really CHINET-specific.
-	;; Get MYHNAM from SYSTEM:HOSTS.TXT which IP already read
+ifn CHINET,<
+;; Not really CHINET-specific.
+;; Init my host name and "pretty name" (for STATUS)
+chimnm:	;; Get MYHNAM from SYSTEM:HOSTS.TXT which IP already read
 	setzm myhnam
 	movx t1,.gthns
 	hrroi t2,myhnam
@@ -2182,6 +2129,80 @@ ifn chinet,<
 	 sout%
 	  erjmp .+1
 	endif.
+	ret
+>
+
+
+	SUBTTL CHAOS NETWORK FORK
+
+DEFINE WCALL (R) <		;;;FOR DEBUGGING: NOTE WHAT WE'RE DOING
+DEBUG,<	MOVEI T1,R
+	MOVEM T1,CHABFW
+	CALL R
+>;DEBUG
+NODEB,<	CALL R >
+>
+
+ifn chinet,<
+;; Chaosnet-over-IP arg block for ASNIQ%
+	extn <chiqb>
+comment |
+chiqb:	exp <.CHAFM>b31		;.IQPRV protocol number - Chaos
+	exp 0			;.IQFHV foreign host value
+	exp 0			;.IQSHV source host value
+	exp 0			;.IQPTV port values (local,,foreign)
+	exp 377b31		;.IQPRM protocol number mask
+	exp 0 ;^-17		;.IQFHM foreign host mask - any
+	exp 0 ;^-17		;.IQSHM source host mask - any
+	exp 0			;.IQPTM port value mask (Chaos is portless)
+	exp .IQLEN+1		;.IQLEN length of this block
+|
+>
+
+CHSFRK:
+IFN TNXFLG,<
+	MOVSI 1,UMODF		;FAKE UP SLOW JSYS ENTRY
+	MOVEM 1,FPC		; ..
+>;IFN TNXFLG
+IFN T20FLG,<
+	MOVX 1,USRCTX		;Set up context
+	MOVEM 1,FFL
+>;IFN T20FLG
+	MCENTR
+	MOVE T1,FORKX		;SAVE OUR FORK INDEX
+	MOVEM T1,CHAFHN
+IFE BBNFLG,<
+ifn t20flg,<
+;	MOVX T1,JP%SYS+1	;SAY WE SHOULD ALWAYS STAY IN HIGHEST-PRIORITY
+;	MOVEM T1,JOBBIT		; QUEUE
+>
+IFN BBNFLG,<
+	CALL SETSPQ		; Special Q us
+>
+ifn CHINET,<
+chsfr0:	movei t1,netsup		;Wait for "hardware"
+	call disl
+	movei t1,^d1000		;Wait a moment more for Internet
+	disms
+	skipe inton		;Is Internet up now?
+	ifskp.
+	 bug.(chk,chsfni,chaos,soft,<Internet down, Chaosnet cannot be enabled>)
+	 setzm chaon		;Set Chaosnet is down
+	 movx t1,^d1000*2
+	 disms
+	 jrst chsfr0		;Try again
+	endif.
+>
+	MOVE T1,CHAON
+	MOVEM T1,CHAONL		;REMEMBER LAST VALUE OF CHAON
+	SETZM CHNPWT		;INITIALIZE -11 WEDGENESS TIMER
+	SETZM CHATIM		;CLEAR OUR CYCLE CLOCKS: BASIC CYCLE,
+	SETZM CHATM1		; TIMEOUT CYCLE
+	SETZM CHATM2		; RFC CHECK CYCLE
+	SETZM CHNGTM		; NEGOTIATION TIMEOUTS FOR NVT'S
+ife chinet,<
+	;; Old code, which might do some DTE stuff in addition to HOSTS2
+	CALL CHSINI		;BUILD OUR HOST TABLE FROM HOSTS2 NOW
 >
 IFN CHINET,<
 	MOVEI T1,^D5000		; Sleep for a little
@@ -2216,6 +2237,7 @@ IFN CHINET,<
 	endif.
 	xmovei t2,chinfk
 	msfrk%
+	setom chaon		;Now Chaos rules!
 >
 ;BASIC CYCLE: PROCESS REQUESTS, AND HANDLE ALARMS FOR TIMEOUTS, ETC.
 ;EACH ROUTINE WORRIES ABOUT SEEING IF IT'S TIME TO HANDLE ITS PARTICULAR
@@ -5071,7 +5093,10 @@ swapch:	savep			;save p1-p6 (10-15)
 	ret
 
 IFL NETDTE,<
-CHARLD:	SETOM CHAON		;ANYTHING ELSE?
+CHARLD:
+ife CHINET,<			;When using Chaos-over-IP, let CHSFRK init this
+	SETOM CHAON		;ANYTHING ELSE?
+>
 	RET
 
 CHXNOR:
