@@ -9,7 +9,7 @@ Based on [old code](https://github.com/PDP-10/sri-nic/tree/master/files/src/mit/
 See [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) for documentation.
 See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
 
-For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP encapsulation is used ([see description](https://github.com/bictorv/chaosnet-bridge/blob/master/README.md#chaos-over-ip)), so you need to have TCP/IP configured and working. (It pays off to specify the FQDN of your system in `HOSTS.TXT`.)
+For transmitting and receiving Chaosnet packets, the standard Chaos-over-IP encapsulation is used ([see description](https://github.com/bictorv/chaosnet-bridge/blob/master/README.md#chaos-over-ip)), so you need to have TCP/IP configured and working.
 
 Also includes non-Chaosnet-related improvements, e.g. to [Telnet option handling](doc/monitor-edits.md#tvtsrvmac).
 
@@ -23,7 +23,7 @@ Also includes non-Chaosnet-related improvements, e.g. to [Telnet option handling
 
 ## Installation
 
-Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it (see e.g. "TOPS-20 TCP/IP - OTHER NOTES" in [klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536)).
+Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it (see [documentation](doc/tops20-tcpip.md)).
 
 For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
 
