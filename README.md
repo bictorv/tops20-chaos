@@ -1,4 +1,4 @@
-[![Human made](https://img.shields.io/badge/Made%by-humans-1f425f.svg)](#no-ai-please)
+[![Human made](https://img.shields.io/badge/Made%20by-humans-1f425f.svg)](#no-ai-please)
 [![Old software](https://img.shields.io/badge/code%20style-archaic-blue.svg)](tree/main/chaos/monitor-sources)
 [![Hairy process](https://img.shields.io/badge/build-complex-yellow.svg)](#installation)
 
