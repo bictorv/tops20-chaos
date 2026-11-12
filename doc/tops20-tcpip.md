@@ -2,7 +2,7 @@
 
 This is necessary for Chaosnet to work, since it sends Chaosnet packets in IP packets.
 
-See also [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536), or the official documentation in Appendix C (start at C.4) of `<DOCUMENTATION>INSTALL.MEM` on your Panda system (or at [Bitsavers](https://bitsavers.trailing-edge.com/pdf/dec/pdp10/TOPS20/V7/INSTALL.MEM.txt)).
+See also [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536), or the official documentation in Appendix C (start at C.4) of `<DOCUMENTATION>INSTALL.MEM` on your Panda system (or at [Bitsavers](https://bitsavers.trailing-edge.com/pdf/dec/pdp10/TOPS20/V7/INSTALL.MEM.txt)). There may well be other documents like this on the Internet.
 
 If the instructions below are incomplete, **let me know** so I can update them! And look for the DEC documentation.
 
