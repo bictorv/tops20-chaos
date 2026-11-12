@@ -2,7 +2,7 @@
 
 This is necessary for Chaosnet to work, since it sends Chaosnet packets in IP packets.
 
-See also [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536), or the official documentation in Appendix C (start at C.4) of `<DOCUMENTATION>INSTALL.MEM` on your Panda system (or at [Bitsavers](https://bitsavers.trailing-edge.com/pdf/dec/pdp10/TOPS20/V7/INSTALL.MEM.txt)). There may well be other documents like this on the Internet.
+See also the `README` file in the [panda-dist.tar.gz](https://panda.trailing-edge.com/) package, or [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536), or the official documentation in Appendix C (start at C.4) of `<DOCUMENTATION>INSTALL.MEM` on your Panda system (or at [Bitsavers](https://bitsavers.trailing-edge.com/pdf/dec/pdp10/TOPS20/V7/INSTALL.MEM.txt)). There may well be other documents like this on the Internet.
 
 If the instructions below are incomplete, **let me know** so I can update them! And look for the DEC documentation.
 
@@ -119,8 +119,13 @@ or
 Aida, DEC-2060 at ICU, Uppsala University
 ```
 
+### Edit SYSTEM:7-1-CONFIG.CMD
+These are commands for `SYSTEM:7-1-SETSPD.EXE` which define system-wide logical names, accounting and scheduling parameters etc, and your timezone (in hours WEST of GMT, so Central European time is -1).
+
+Even before installing Chaosnet, you may want to adjust the `TIMEZONE`. After installing Chaosnet, you most likely should include `PS:<CHAOS.SUBSYS>` in the definition of `SYS:` (see also doc about [client programs](../README.md#client-programs)).
+
 ### Edit SYSTEM:SYSTEM.CMD
-These are commands for `OPR` which are read at system startup (see `SYSTEM:7-1-SYSJOB.RUN`). (*Possibly* you should un-comment the lines starting with `!` towards the end - I did, but I don't recall if it's necessary. Possibly this is DECnet-related.)
+These are commands for `OPR` which are read at system startup (see `SYSTEM:7-1-SYSJOB.RUN`). 
 
 ### Edit SYSTEM:SYSJB1.RUN
 
