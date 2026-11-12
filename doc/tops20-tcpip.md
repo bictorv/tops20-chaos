@@ -2,7 +2,7 @@
 
 This is necessary for Chaosnet to work, since it sends Chaosnet packets in IP packets.
 
-See also [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536), or the official documentation in Appendix C (start at C.4) of `<DOCUMENTATION>INSTALL.MEM` on your Panda system.`
+See also [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536), or the official documentation in Appendix C (start at C.4) of `<DOCUMENTATION>INSTALL.MEM` on your Panda system (or at [Bitsavers](https://bitsavers.trailing-edge.com/pdf/dec/pdp10/TOPS20/V7/INSTALL.MEM.txt)).
 
 If the instructions below are incomplete, **let me know** so I can update them! And look for the DEC documentation.
 
@@ -17,7 +17,7 @@ This file is read at system startup. The important thing to edit is your IP addr
   - `PREFERRED` - this is the "preferred" address for the host (does not need to be specified if there is only one)
   - `PACKET-SIZE:`*nnnn* - the maximum packet size allowed (default 576 decimal, so should most likely be specified)
   - `LOGICAL-HOST-MASK:`*ipmask* - sets the "logical host mask" for this network (what we these days call network mask). **No default**, so should be specified.
-  - additionally `NCP` indicates that this network uses the Arpanet NCP protocol, and `SERIAL` that it is a serial line.
+  - (additionally `NCP` indicates that this network uses the Arpanet NCP protocol, and `SERIAL` that it is a serial line.)
 
 The original Panda content is:
 
