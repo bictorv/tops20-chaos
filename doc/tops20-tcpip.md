@@ -66,7 +66,7 @@ HOST : 10.0.0.51 : My-System : KLH-KL : TOPS20 : TCP/TELNET,TCP/FTP,TCP/SMTP :
 
 *Note*: when booting with `DBUGSW==2`, the file `SYSTEM:HOSTS.DEBUG` is read instead of `SYSTEM:HOSTS.TXT`.
 
-*Note*: you may later want to add CHAOS addresses to this file (see [here](../README.md#systemhoststxt)), ***WAIT*** until you have installed the Chaosnet monitor, since the default Panda monitor will complain and abort reading the file if it has CHAOS addresses in it.
+*Note*: you may later want to add CHAOS addresses to this file (see [here](../README.md#systemhoststxt)), ***BUT WAIT*** until you have installed the Chaosnet monitor, since the default Panda monitor will complain and abort reading the file if it has CHAOS addresses in it.
 
 ## Edit DOMAIN:RESOLV.CONFIG
 
@@ -120,7 +120,7 @@ Aida, DEC-2060 at ICU, Uppsala University
 ```
 
 ### Edit SYSTEM:SYSTEM.CMD
-These are commands for `OPR` which are read at system startup. (*Possibly* you should un-comment the lines starting with `!` towards the end - I did, but I don't recall if it's necessary.)
+These are commands for `OPR` which are read at system startup (see `SYSTEM:7-1-SYSJOB.RUN`). (*Possibly* you should un-comment the lines starting with `!` towards the end - I did, but I don't recall if it's necessary. Possibly this is DECnet-related.)
 
 ### Edit SYSTEM:SYSJB1.RUN
 
