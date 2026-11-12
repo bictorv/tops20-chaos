@@ -67,9 +67,11 @@ HOST : 10.0.0.51 : My-System : KLH-KL : TOPS20 : TCP/TELNET,TCP/FTP,TCP/SMTP :
 
 *Note*: when booting with `DBUGSW==2`, the file `SYSTEM:HOSTS.DEBUG` is read instead of `SYSTEM:HOSTS.TXT`.
 
+*Note*: you may later want to add CHAOS addresses to this file (see [here](../README.md#systemhoststxt)), ***WAIT*** until you have installed the Chaosnet monitor, since the default Panda monitor will complain and abort reading the file if it has CHAOS addresses in it.
+
 ## Try it
 
-After making sure the IP address specified in your `klh10.ini` (or corresponding for `simh`) matches what you specified in `SYSTEM:INTERNET.ADDRESS` and in `SYSTEM:HOSTS.TXT`, try rebooting.
+After making sure the IP address specified in your `klh10.ini` (or corresponding for `simh`) matches what you specified in `SYSTEM:INTERNET.ADDRESS` and in `SYSTEM:HOSTS.TXT`, try rebooting and see if it seems to work. You can e.g. try connecting to your TOPS-20 system using Telnet.
 
 ## Edit non-essential files
 

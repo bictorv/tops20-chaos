@@ -66,6 +66,8 @@ HOST : CHAOS 177001 : BRIDGE : KLH-10 : ITS : :
 HOST : CHAOS 177002 : MYITS : KLH-10 : ITS : :
 ```
 
+*Note*: wait until you have installed the Chaosnet monitor, since the default Panda monitor will complain and abort reading the file if it has CHAOS addresses in it.
+
 A full host table for the [Global Chaosnet](https://chaosnet.net/global) can be found in [hosts.txt](hosts.txt).
 
 ### DNS resolver
