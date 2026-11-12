@@ -2,8 +2,7 @@
 
 This is necessary for Chaosnet to work, since it sends Chaosnet packets in IP packets.
 
-There is probably a DEC manual for all this.
-See also [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536).
+See also [klh10/doc/klt20.txt](https://github.com/PDP-10/klh10/blob/6d733f2a47644964492fd864454cbe1331655e53/doc/klt20.txt#L536), or the official documentation in Appendix C (start at C.4) of `<DOCUMENTATION>INSTALL.MEM` on your Panda system.`
 
 If the instructions below are incomplete, **let me know** so I can update them! And look for the DEC documentation.
 
@@ -69,9 +68,25 @@ HOST : 10.0.0.51 : My-System : KLH-KL : TOPS20 : TCP/TELNET,TCP/FTP,TCP/SMTP :
 
 *Note*: you may later want to add CHAOS addresses to this file (see [here](../README.md#systemhoststxt)), ***WAIT*** until you have installed the Chaosnet monitor, since the default Panda monitor will complain and abort reading the file if it has CHAOS addresses in it.
 
+## Edit DOMAIN:RESOLV.CONFIG
+
+Optionally, edit this file to specify your local DNS resolver and local domain, e.g.
+```
+DSERVE 192.168.0.1        ;My local DNS resolver
+RSEARCH .                 ;Try fully qualified first
+RSEARCH my.local.dom.ain. ; then my local domain
+```
+
+You probably want to specify a lower query timeout than the default 40 seconds, using e.g.
+```
+QUERY-TIMEOUT 4
+```
+
+After installing the Chaosnet monitor, see also [notes about the DNS resolver](../README.md#dns-resolver) and [some additional notes](../README.md#resolv).
+
 ## Try it
 
-After making sure the IP address specified in your `klh10.ini` (or corresponding for `simh`) matches what you specified in `SYSTEM:INTERNET.ADDRESS` and in `SYSTEM:HOSTS.TXT`, try rebooting and see if it seems to work. You can e.g. try connecting to your TOPS-20 system using Telnet.
+After making sure the IP address specified in your `klh10.ini` (or corresponding for `simh`) matches what you specified in `SYSTEM:INTERNET.ADDRESS` and in `SYSTEM:HOSTS.TXT`, try rebooting and see if it seems to work. You can e.g. try connecting to your TOPS-20 system using Telnet, and of course check for error messages during start-up.
 
 ## Edit non-essential files
 

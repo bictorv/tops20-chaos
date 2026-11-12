@@ -23,7 +23,7 @@ Also includes non-Chaosnet-related improvements, e.g. to [Telnet option handling
 
 ## Installation
 
-Begin by installing a [Panda](https://github.com/PDP-10/panda) system and get Internet working on it (see [documentation](doc/tops20-tcpip.md)).
+Begin by installing a [Panda](https://github.com/PDP-10/panda) system, and get Internet working on it (see [documentation](doc/tops20-tcpip.md)).
 
 For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
 
@@ -187,8 +187,8 @@ The following new JSYSes are only enabled with the `VTSSW` compile-time setting 
 
 ## What should be done later
 
-- SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.)
-- Summarise what changes were done to the original. (See [monitor-edits](doc/monitor-edits.md) and [exec-edits](doc/exec-edits.md).)
+- SYSDPY should do things (show conns, windows, whatnot - like PEEK in ITS.) (It should also be made aware of Chaosnet host table entries in the ANH display.)
+- Summaries of what changes were done to the originals are in [monitor-edits](doc/monitor-edits.md) and [exec-edits](doc/exec-edits.md) (and sometimes in `-READ-THIS-.TXT` files), but could be more detailed and describe things at a more technical level.
 
 ### RESOLV
 
