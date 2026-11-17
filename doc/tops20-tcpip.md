@@ -139,8 +139,8 @@ This file specifies which network servers are enabled and started on-demand (as 
 
 #### SYSTEM:INTERNET-LOGIN-MESSAGE.TXT
 
-The message in this file is printed when someone connects using Telnet.
+The message in this file is printed when someone connects using Telnet, before the monitor version header.
 
 #### SYSTEM:BEWARE-MESSAGE.TXT
 
-This is printed when a new job is created (for non-logged-in, non-PTY jobs).
+This is printed when a new job is created (for non-logged-in, non-PTY jobs), after the monitor version header.

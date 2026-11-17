@@ -43,8 +43,8 @@ DEFINE UNV: SYS:
 ! Other definitions
 !
 TIMEZONE -1
-! Don't log out jobs when the connection is lost
-disable detach-carrier-off
+! Set max timeout (19h) before logging out jobs when the connection is lost
+enable detach-carrier-off 1119
 BATCH-BACKGROUND
 DISABLE ACCOUNT-VALIDATION
 !ENABLE TAPE-DRIVE-ALLOCATION
