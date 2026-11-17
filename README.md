@@ -96,9 +96,9 @@ where *x.y.z.w* is the IP of your TOPS-20 system, *nnnn* is its Chaosnet address
 
 ### Greetings (optional)
 
-The contents of `SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT`, if it exists, is printed on new Chaosnet TELNET connections, just like `SYSTEM:INTERNET-LOGIN-MESSAGE.TXT` is printed on new TCP TELNET connections.
+The contents of `SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT`, if it exists, is printed on new Chaosnet TELNET connections (before the monitor version header), just like `SYSTEM:INTERNET-LOGIN-MESSAGE.TXT` is printed on new TCP TELNET connections.
 
-The content of `SYSTEM:MONNAM.TXT`, if existing, up to the first non-[A-Za-z0-9_-] character is used as system name in `STATUS` replies (to allow for a FQDN as host name while keeping those replies brief). *Remark*: another option would be to use all of MONNAM.TXT in STATUS replies, similar to how LISPMs use their pretty-name (which is "human readable" and often longer than the system name). What do you think?
+The content of `SYSTEM:MONNAM.TXT`, if existing, up to the first non-[A-Za-z0-9_-] character is used as system name in `STATUS` replies (to allow for a FQDN as host name while keeping those replies brief). *Remark*: another option would be to use all of MONNAM.TXT in STATUS replies, similar to how LISPMs use their pretty-name (which is "human readable" and often longer than the system name). Another option would be to set the pretty-name with a keyword in `CHAOSNET.ADDRESS`, e.g. `PRETTY-NAME:"Chaotic Panda"`.  What do you think?
 
 ## What works
 
@@ -220,8 +220,6 @@ Of course! Please report them to me.
 
 Known things:
 - Loopback connections (from self to self) most often drop (initial?) packets. E.g. `FINGER @self` typically returns no output, `TELNET self` takes a few `^T` to get going and doesn't show the first few packets worth of output.
-- `BUGINF FLKINT` when creating outgoing connections.
-	- This seems not to cause problems, but indicates some bug of course.
 - `BUGCHK IPIBLP` when lots of input coming in a connection.
 	- This was related to a Chaosnet window handling bug in the [Chaosnet bridge program](https://github.com/bictorv/chaosnet-bridge) but could still appear as the result of a DoS attack.
 - If you set the Telnet Location by using the Telnet option, and then attach another job, the location is lost. This is because the location is set for the job at the terminal at the time it is set, and attaching changes the job, obviously. Would require a reasonably gross hack to fix, and it's easy to set the location again after attaching (by Telnet option or `TTYLOC`).
