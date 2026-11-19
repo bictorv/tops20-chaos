@@ -963,7 +963,11 @@ nsetst:	move t1,sbclst+sbcrix
 
 ;; Subnegotiation option handlers
 NVTSEO:	
-repeat LGOOPT,<
+repeat STSOPT,<
+	IFIW!R			;No handler for these.
+>
+	IFIW!NVSSTS		;Status
+repeat LGOOPT-STSOPT-1,<
 	IFIW!R			;No handler for these.
 >
 	IFIW!NVSLGO		;Logout (not a subneg really)
@@ -979,6 +983,126 @@ repeat WSZOPT-TTPOPT-1,<
 repeat WILOPT-WSZOPT,<
 	IFIW!R			;No handler for these.
 >
+
+;; NVSSTS - handle subneg about status
+; T1/ option (not interesting)
+; T2/ dynamic data
+; T3/ subneg list entry pointer
+; Returns +1 always.
+
+nvssts:	stkvar <ecent,dynd,opbp,nbytes,curbts,curbit>
+	skipe t2
+	ifskp.
+	 bug.(inf,nvsts0,tvtsrv,soft,<STATUS but no dynamic data>,<<t2,dynd>>)
+	 ret
+	endif.
+	movem t2,dynd
+	movem t3,ecent
+	xmovei t1,1(t3)		;Addr of buffer
+	txo t1,.p08
+	movem t1,opbp		;Save bp
+	load t1,sblen,(t3)	;How much option data?
+	cain t1,1		;Should just be SEND
+	ifskp.
+	 bug.(inf,nvstsz,tvtsrv,soft,<STATUS option length bad>,<<t1,len>>)
+	 ret
+	endif.
+	ildb t1,opbp		;Get the byte
+	cain t1,1		;1 = SEND
+	ifskp.
+	 bug.(inf,nvstsy,tvtsrv,soft,<STATUS option code bad, expected SEND=1>,<<t1,code>>)
+	 ret
+	endif.
+	;; See how many bytes will be needed in the response, and reserve it with NVTRSV.
+	move t1,nvtodr(t2)	;Check enabled DO options
+	call itm169		;Count bits, result in t1
+	movem t1,nbytes
+	move t1,nvtowr(t2)	;Check enabled WILL options
+	call itm169
+	add t1,nbytes
+	lsh t1,1		;Times 2: DO/WILL for each OPT
+	addi t1,<2+2+2>		;IAC SB STATUS IS ... IAC SE
+repeat 0,<
+	;; debug
+	bug.(inf,nvstsw,tvtsrv,soft,<STATUS resp needs bytes>,<<t1,nbytes>>)
+>
+	cail t1,<2*WILOPT+6>	;Can't be more than this, ever
+	 ret
+	call nvtrsv		;Reserve space (and go NOSKED if success)
+	ifnsk.
+	 bug.(inf,nvstsv,tvtsrv,soft,<STATUS resp allocation failed>)
+	 ret
+	endif.
+	movei t1,iacch
+	call tcobq
+	movei t1,sbch		;Start subnegotiation
+	call tcobq		;send IAC SB
+	movei t1,STSOPT		;STATUS
+	call tcobq
+	movei t1,0		;IS
+	call tcobq
+	;; Then loop over bits in NVTODR and NVTOWR, outputting them.
+	move t2,dynd
+	move t3,nvtodr(t2)	;Get enabled DO options
+	movei t4,DOCH		;DO
+	call nvsbts		;Send the bits
+	move t3,nvtowr(t2)	;Get enabled WILL options
+	movei t4,WILCH		;WILL
+	call nvsbts		;Send the bits
+	movei t1,iacch
+	call tcobq
+	movei t1,sech
+	call tcobq		;Send IAC SE
+	OKSKD1			;(cf e.g. NVTSSP)
+	ret			;And be done.
+
+	endsv.
+
+;; Send subneg values for a set of bits
+; T2/ dynamic data
+; T3/ bits to check
+; T4/ command (DO or WILL)
+nvsbts:	saveac <t3,t4>
+	stkvar <cmd,curbts,curbit>	;*after* saveac
+	movem t4,cmd
+	movem t3,curbts		;Save, since TCOBQ may use t3
+	do.
+	 jffo t3,.+2		;Find the next enabled option
+	  exit.			;None, done
+	 movem t4,curbit	;Save, since TCOBQ may use t4
+	 move t1,cmd		;WILL/DO
+	 call tcobq
+	 move t1,curbit		;The number of the option
+	 call tcobq
+	 move t3,curbts
+	 move t4,curbit
+	 andcm t3,bits(t4)	;Clear the bit
+	 movem t3,curbts
+	 loop.			; and look for the next
+	enddo.
+	ret
+
+	endsv.
+
+;; HAKMEM ITEM 169 (in order of one-ups-manship: Gosper, Mann, Lenard, [Root and Mann]):
+; To count the ones in a PDP-6/10 word:
+;These ten instructions, with constants extended, would work on word lengths up to 62.; eleven suffice up to 254..
+; t1/ word to count bits in
+; returns +1 with
+; t1/ number of bits
+itm169:	saveac <t2>
+        LDB B,[014300,,A]      ;or MOVE B,A then LSH B,-1
+        AND B,[333333,,333333]
+        SUB A,B
+        LSH B,-1
+        AND B,[333333,,333333]
+        SUBB A,B               ;each octal digit is replaced by number of 1's in it
+        LSH B,-3
+        ADD A,B
+        AND A,[070707,,070707]
+        IDIVI A,77             ;casting out 63.'s
+	move t1,b
+	ret
 
 ;; NVSLOC - handle subneg about location
 ; T1/ option (not interesting)
@@ -1687,7 +1811,12 @@ NVTDOD:	IFIW!RSKP		;BINARY XMIT -- OK WITH US
 	IFIW!R			;RECONNECT -- REFUSE FOR NOW
 	IFIW!NVTSGA		;SUPPRESS GA -- WONDERFUL NEWS
 	IFIW!R			;MESSAGE SIZE -- REFUSE
+repeat 1,<
+	IFIW!RSKP		;STATUS - fine
+>
+repeat 0,<
 	IFIW!R			;STATUS -- REFUSE
+>
 	IFIW!NVTDTM		;TIMING MARK -- TRY TO DO IT
 ;	IFIW!NVTDRC		;REMOTE CONTROLLED TRANS & ECHO
 	IFIW!R			;DO NOT DO IT FOR NOW

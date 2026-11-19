@@ -105,11 +105,14 @@ Print SYSTEM:CHAOSNET-LOGIN-MESSAGE.TXT on Chaosnet NVTs (like SYSTEM:INTERNET-L
 
 Extended to handle Telnet Subnegotiations (under control of the `TSBSW` parameter, cf SITE.MAC) for
 - "window size" ([RFC 1073](https://datatracker.ietf.org/doc/html/rfc1073)), 
-- "terminal type" ([RFC 1091](https://datatracker.ietf.org/doc/html/rfc1091)), and
-- "location" ([RFC 779](https://datatracker.ietf.org/doc/html/rfc779)), and
-- "logout" ([RFC 727](https://datatracker.ietf.org/doc/html/rfc727)) options. 
+- "terminal type" ([RFC 1091](https://datatracker.ietf.org/doc/html/rfc1091)), 
+- "location" ([RFC 779](https://datatracker.ietf.org/doc/html/rfc779)), 
+- "logout" ([RFC 727](https://datatracker.ietf.org/doc/html/rfc727)), and
+- "status" ([RFC 859](https://datatracker.ietf.org/doc/html/rfc859)) options. 
 The first two mean that TOPS-20 now automatically understands your terminal window size and what terminal type your terminal window app is using (if it is ansi, dec-vt100, vt100, xterm, or xterm-256color).
 
-**Note** that this required changes to TVTLEN/CVTLEN, which are defined in TVTSRV but used in TTYDEF and TTYSRV, which thus need recompiling.
+(The implementation of STATUS utilizes [the JFFO instruction](https://www.inwap.com/pdp10/hbaker/pdp-10/Shifting.html), and [HAKMEM item 169](https://www.inwap.com/pdp10/hbaker/hakmem/hacks.html#item169), see NVSBTS and ITM169 in `TVTSRV.MAC`.)
 
-**Also note** that some definitions from `<CHAOS.FINGER>FNGDEF.MAC` are copied in `TVTDEF.MAC`, in order to set the location in a way compatible with `FINGER` and its `<CHAOS.FINGER>GETLOC` library.
+**Note** that handling these options required changes to TVTLEN/CVTLEN, which are defined in TVTSRV but used in TTYDEF and TTYSRV, which thus need recompiling.
+
+**Also note** that (for the purpose of the "location" option) some definitions from `<CHAOS.FINGER>FNGDEF.MAC` are copied in `TVTDEF.MAC`, in order to set the location in a way compatible with `FINGER` and its `<CHAOS.FINGER>GETLOC` library.
