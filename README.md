@@ -4,7 +4,7 @@
 
 # Chaosnet support for TOPS-20
 
-Based on [old code](https://github.com/PDP-10/sri-nic/tree/master/files/src/mit/monitor) for TOPS-20 version 5 from MIT and SRI, ported into the [PANDA TOPS-20 version 7.1](https://github.com/PDP-10/panda), but in a separate tree to perhaps make it easier to port to other TOPS-20 distros/versions.
+Based on [old code](https://github.com/PDP-10/sri-nic/tree/master/files/src/mit/monitor) for TOPS-20 version 5 from MIT and SRI, ported into the [PANDA TOPS-20 version 7.1](https://panda.trailing-edge.com/), but in a separate tree to perhaps make it easier to port to other TOPS-20 distros/versions.
 
 See [the Chaosnet report](https://chaosnet.net/amber.html#The-TOPS_002d20_002fTENEX-Implementation) for documentation.
 See [Chaosnet.net](https://chaosnet.net) for more info about Chaosnet.
@@ -23,9 +23,9 @@ Also includes non-Chaosnet-related improvements, e.g. to [Telnet option handling
 
 ## Installation
 
-Begin by installing a [Panda](https://github.com/PDP-10/panda) system, and get Internet working on it (see [documentation](doc/tops20-tcpip.md)).
+Begin by installing a [Panda](https://panda.trailing-edge.com/) system, and get Internet working on it (see [documentation](doc/tops20-tcpip.md)).
 
-For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
+For this, you probably need to be running on a KL (or emulator, such as [KLH10](https://github.com/PDP-10/klh10) or perhaps [simh](https://github.com/simh/simh)). Note: do not use the version of KLH10 included in the Panda distribution, but the [current version](https://github.com/PDP-10/klh10). The Chaosnet code has only been tried on a KLH10-KL (but since it relies only on IP working, it "should" work on other systems too).
 
 Then restore the tape file `chaos.tps` using `DUMPER`. (To read the tape under *nix, you can use `read20 -x -b -f chaos.tps` with read20 from [this version](https://github.com/brouhaha/tapeutils) of tapeutils.)
 
