@@ -108,7 +108,8 @@ Extended to handle Telnet Subnegotiations (under control of the `TSBSW` paramete
 - "terminal type" ([RFC 1091](https://datatracker.ietf.org/doc/html/rfc1091)), 
 - "location" ([RFC 779](https://datatracker.ietf.org/doc/html/rfc779)), 
 - "logout" ([RFC 727](https://datatracker.ietf.org/doc/html/rfc727)), and
-- "status" ([RFC 859](https://datatracker.ietf.org/doc/html/rfc859)) options. 
+- "status" ([RFC 859](https://datatracker.ietf.org/doc/html/rfc859)) options.
+
 The first two mean that TOPS-20 now automatically understands your terminal window size and what terminal type your terminal window app is using (if it is ansi, dec-vt100, vt100, xterm, or xterm-256color).
 
 (The implementation of STATUS utilizes [the JFFO instruction](https://www.inwap.com/pdp10/hbaker/pdp-10/Shifting.html), and [HAKMEM item 169](https://www.inwap.com/pdp10/hbaker/hakmem/hacks.html#item169), see NVSBTS and ITM169 in `TVTSRV.MAC`.)
